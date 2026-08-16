@@ -1,11 +1,11 @@
-# Web dashboard dependencies for Azure Discord Bot
+# Azure AI experimental web dashboard dependencies
 
-# Core web framework
+# Web framework
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0
 websockets>=11.0.3
 
-# Security & Auth
+# Authentication and request handling
 python-jose[cryptography]>=3.3.0
 passlib[bcrypt]>=1.7.4
 python-multipart>=0.0.6

@@ -1,362 +1,206 @@
-# Contributing to Azure Discord Bot
+# Contributing to Azure AI
 
-Thank you for your interest in contributing to Azure! This document provides guidelines and instructions for contributing.
+Thank you for helping improve Azure AI. The project is **extremely beta and experimental**, so contributions that improve correctness, safety, tests, documentation, and operational reliability are especially valuable.
 
-## Table of Contents
+## Before you start
 
-- [Code of Conduct](#code-of-conduct)
-- [How Can I Contribute?](#how-can-i-contribute)
-- [Development Setup](#development-setup)
-- [Pull Request Process](#pull-request-process)
-- [Coding Standards](#coding-standards)
-- [Testing Guidelines](#testing-guidelines)
+Please:
 
----
+1. Read the [README](README.md).
+2. Read [SECURITY.md](SECURITY.md) before reporting security issues.
+3. Search existing issues and pull requests before opening a new one.
+4. Never include tokens, API keys, passwords, private Discord data, or other secrets in issues, commits, or pull requests.
 
-## Code of Conduct
+## Development setup
 
-### Our Pledge
+### Requirements
 
-We are committed to providing a welcoming and inclusive experience for everyone. We expect all contributors to:
-
-- Use welcoming and inclusive language
-- Be respectful of differing viewpoints and experiences
-- Gracefully accept constructive criticism
-- Focus on what is best for the community
-- Show empathy towards other community members
-
-### Unacceptable Behavior
-
-- Harassment, trolling, or derogatory comments
-- Publishing others' private information
-- Any conduct that could reasonably be considered inappropriate
-
----
-
-## How Can I Contribute?
-
-### Reporting Bugs
-
-Before creating a bug report, please:
-
-1. **Search existing issues** to avoid duplicates
-2. **Check the troubleshooting guide** (docs/TROUBLESHOOTING.md)
-3. **Verify you're on the latest version**
-
-When creating a bug report, include:
-
-- **Clear title** describing the issue
-- **Steps to reproduce** the behavior
-- **Expected vs actual behavior**
-- **Environment details** (OS, Python version, etc.)
-- **Error messages** (full text, not screenshots if possible)
-- **Relevant configuration** (remove tokens!)
-
-### Suggesting Features
-
-Feature suggestions are welcome! Please:
-
-1. **Search existing feature requests** first
-2. **Explain the use case** - why is this feature valuable?
-3. **Describe the solution** you'd like
-4. **Consider alternatives** - are there other ways to solve this?
-5. **Be open to discussion** - features may evolve
-
-### Contributing Code
-
-We welcome pull requests for:
-
-- Bug fixes
-- Feature implementations
-- Documentation improvements
-- Test coverage improvements
-- Performance optimizations
-
----
-
-## Development Setup
-
-### Prerequisites
-
-- Python 3.11 or higher
+- Python 3.11+
 - Git
-- Discord bot token (for testing)
-- Virtual environment tool (venv, conda, etc.)
+- A virtual environment
+- A Discord bot and test server only if you are working on live Discord behavior
 
-### Setup Steps
+Create and activate a virtual environment:
 
 ```bash
-# 1. Fork and clone
-git clone https://github.com/YOUR_USERNAME/azure-discord-bot.git
-cd azure-discord-bot
+python -m venv .venv
+```
 
-# 2. Create virtual environment
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-# or
-venv\Scripts\activate  # Windows
+Windows PowerShell:
 
-# 3. Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-web.txt
+```powershell
+.venv\Scripts\Activate.ps1
+```
 
-# 4. Install development tools (optional)
-pip install pytest pytest-asyncio pytest-cov black ruff mypy
+Linux/macOS:
 
-# 5. Configure for development
+```bash
+source .venv/bin/activate
+```
+
+Install runtime and web dependencies:
+
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m pip install -r requirements-web.txt
+```
+
+Install development tooling:
+
+```bash
+python -m pip install -r requirements-dev.txt
+```
+
+Create a local configuration from the safe template:
+
+```bash
 cp .env.example .env
-# Edit .env with your test bot token
-
-# 5. Run tests
-pytest
-
-# 6. Create a branch
-git checkout -b feature/your-feature-name
 ```
 
----
+On Windows PowerShell:
 
-## Pull Request Process
-
-### Before Submitting
-
-1. **Test your changes**
-   ```bash
-   pytest
-   ```
-
-2. **Format your code**
-   ```bash
-   black azure/
-   ```
-
-3. **Check for issues**
-   ```bash
-   flake8 azure/
-   ```
-
-4. **Update documentation** if needed
-   - Update README.md for user-facing changes
-   - Update docstrings for API changes
-   - Update CHANGELOG.md (unreleased section)
-
-5. **Commit with clear messages**
-   ```
-   Add spam detection fallback for empty messages
-   
-   - Check for None/empty message content before processing
-   - Add tests for edge cases
-   - Update docs/TROUBLESHOOTING.md with new edge case
-   ```
-
-### Submitting
-
-1. **Push to your fork**
-   ```bash
-   git push origin feature/your-feature-name
-   ```
-
-2. **Open a Pull Request** on GitHub
-
-3. **Fill out the PR template**
-   - What does this PR do?
-   - Why is this change needed?
-   - How has it been tested?
-   - Related issues?
-
-4. **Respond to review feedback**
-   - Be open to suggestions
-   - Make requested changes
-   - Ask questions if unclear
-
-### After Submission
-
-- Automated tests will run (GitHub Actions)
-- Maintainers will review your PR
-- You may be asked to make changes
-- Once approved, maintainers will merge
-
----
-
-## Coding Standards
-
-### Python Style
-
-We follow **PEP 8** with some modifications:
-
-- Line length: 100 characters (not 79)
-- Use **type hints** for function signatures
-- Use **docstrings** for public functions/classes
-- Prefer **explicit over implicit**
-
-### Example
-
-```python
-from typing import Optional
-
-def classify_message(
-    content: str,
-    user_id: str,
-    threshold: float = 0.75
-) -> Optional[str]:
-    """
-    Classify a message as spam, toxic, or clean.
-    
-    Args:
-        content: The message text to classify
-        user_id: Discord user ID for context
-        threshold: Confidence threshold (0.0-1.0)
-    
-    Returns:
-        Classification label or None if below threshold
-    
-    Raises:
-        ValueError: If threshold is out of range
-    """
-    if not 0.0 <= threshold <= 1.0:
-        raise ValueError(f"Threshold must be 0.0-1.0, got {threshold}")
-    
-    # Implementation...
-    return "clean"
+```powershell
+Copy-Item .env.example .env
 ```
 
-### Code Organization
+Keep `.env` local and never commit it.
 
-- **One class per file** (unless closely related)
-- **Logical file names** (e.g., `spam_detector.py`, not `utils.py`)
-- **Group related functions** into modules
-- **Avoid circular imports**
+## Development workflow
 
-### Naming Conventions
-
-- **Variables/functions**: `snake_case`
-- **Classes**: `PascalCase`
-- **Constants**: `UPPER_SNAKE_CASE`
-- **Private methods**: `_leading_underscore`
-
----
-
-## Testing Guidelines
-
-### Test Requirements
-
-All new code should include tests:
-
-- **Unit tests** for individual functions
-- **Integration tests** for system interactions
-- **Edge case tests** for error conditions
-
-### Writing Tests
-
-```python
-import pytest
-from azure.ai_moderation.spam_ai import SpamAI
-
-def test_spam_detection_obvious_spam():
-    """Test that obvious spam is detected"""
-    detector = SpamAI()
-    result = detector.classify("BUY NOW! CLICK HERE! LIMITED OFFER!")
-    
-    assert result.is_spam is True
-    assert result.confidence > 0.8
-
-def test_spam_detection_normal_message():
-    """Test that normal messages are not flagged"""
-    detector = SpamAI()
-    result = detector.classify("Hey, how's it going?")
-    
-    assert result.is_spam is False
-
-@pytest.mark.parametrize("message,expected", [
-    ("", False),  # Empty message
-    (None, False),  # None message
-    ("a" * 10000, True),  # Very long message
-])
-def test_spam_detection_edge_cases(message, expected):
-    """Test edge cases"""
-    detector = SpamAI()
-    result = detector.classify(message)
-    assert result.is_spam == expected
-```
-
-### Running Tests
+Create a focused branch from `main`:
 
 ```bash
-# All tests
-pytest
-
-# Specific file
-pytest tests/test_spam_ai.py
-
-# Specific test
-pytest tests/test_spam_ai.py::test_spam_detection_obvious_spam
-
-# With coverage
-pytest --cov=azure --cov-report=html
-
-# Watch mode (re-run on changes)
-pytest-watch
+git switch main
+git pull --ff-only
+git switch -c feature/short-description
 ```
 
----
+Keep changes focused. Avoid mixing unrelated refactors with bug fixes or features.
+
+## Required checks
+
+Before opening a pull request, run the checks relevant to your change.
+
+### Compilation
+
+```bash
+python -m compileall azure bot web scripts
+```
+
+### Tests
+
+```bash
+pytest
+```
+
+For a focused change, also run its targeted tests first:
+
+```bash
+pytest tests/test_<area>.py
+```
+
+### Dependency consistency
+
+```bash
+python -m pip check
+```
+
+### Linting
+
+```bash
+ruff check .
+```
+
+### Formatting
+
+```bash
+ruff format --check .
+```
+
+If formatting is required and you intend to apply it:
+
+```bash
+ruff format .
+```
+
+Do not use a formatter to rewrite unrelated files in a focused pull request.
+
+## Testing principles
+
+New behavior should have tests. Prefer:
+
+- Unit tests for isolated logic
+- Integration tests for subsystem interactions
+- Regression tests for fixed bugs
+- Adversarial/edge-case tests for security-sensitive behavior
+- Simulation tests when live Discord or provider access is inappropriate
+
+Changes involving authorization, moderation, tool execution, memory isolation, recovery, or external providers should receive extra scrutiny.
+
+## Pull requests
+
+A good pull request should explain:
+
+- What changed
+- Why it changed
+- How it was tested
+- Any limitations or unverified behavior
+- Any configuration or migration impact
+
+Keep the title concise and action-oriented, for example:
+
+```text
+fix: prevent cross-server memory leakage
+```
+
+Do not claim that a feature is production-ready unless it has actually received the required live validation.
+
+## Coding standards
+
+Python code should follow the project configuration in `pyproject.toml`.
+
+General expectations:
+
+- Use type hints for public interfaces and important internal boundaries.
+- Prefer small, testable functions over large orchestration blocks.
+- Keep authorization and safety decisions explicit.
+- Avoid hidden global state where practical.
+- Preserve async behavior and cancellation semantics.
+- Add docstrings to public classes/functions when the behavior is non-obvious.
+- Use `snake_case` for functions/variables, `PascalCase` for classes, and `UPPER_SNAKE_CASE` for constants.
+- Keep security-sensitive behavior easy to audit.
 
 ## Documentation
 
-### Docstrings
+Update documentation when behavior, configuration, APIs, setup, or operational expectations change.
 
-Use **Google-style docstrings**:
+In particular, update:
 
-```python
-def process_message(content: str, context: dict) -> dict:
-    """
-    Process a message through the cognitive pipeline.
-    
-    Args:
-        content: The message text to process
-        context: Dictionary containing conversation context
-    
-    Returns:
-        Dictionary with processing results including:
-            - response: Generated response text
-            - confidence: Confidence score (0.0-1.0)
-            - reasoning: Explanation of decision
-    
-    Raises:
-        ValueError: If content is empty
-        LLMError: If LLM processing fails
-    
-    Example:
-        >>> result = process_message("Hello", {"user_id": "123"})
-        >>> print(result["response"])
-        'Hi! How can I help you today?'
-    """
-```
+- `README.md` for user-facing changes
+- `docs/CONFIGURATION.md` for configuration changes
+- `docs/TROUBLESHOOTING.md` for operational fixes
+- `docs/MODEL_SETUP.md` for model/backend changes
+- `CHANGELOG.md` for notable user-facing changes
 
-### README Updates
+## Security-sensitive changes
 
-When adding user-facing features:
+Do not test destructive Discord actions against communities you do not control.
 
-1. Update main README.md
-2. Update relevant docs/ files
-3. Add examples if helpful
-4. Update .env.example if adding config
+For changes involving tools, permissions, moderation, recovery, authentication, data isolation, or command execution, include explicit tests for denied/unauthorized paths as well as successful paths.
 
----
+If you discover a vulnerability, follow [SECURITY.md](SECURITY.md) rather than opening a public issue.
 
-## Questions?
+## Review checklist
 
-- **GitHub Discussions** for questions
-- **GitHub Issues** for bugs/features
-- **Discord Server** (if available)
+Before requesting review, confirm:
 
----
+- [ ] Tests pass for the changed area.
+- [ ] New behavior has regression coverage where appropriate.
+- [ ] No secrets or private runtime data are included.
+- [ ] Documentation is updated where necessary.
+- [ ] The change does not silently weaken authorization or safety gates.
+- [ ] The PR description states what was actually verified.
+- [ ] Unverified live behavior is clearly identified.
 
-## Recognition
-
-Contributors are recognized in:
-
-- CHANGELOG.md (for significant contributions)
-- GitHub contributors page
-- Release notes (for major features)
-
-Thank you for contributing to Azure!
+Thank you for contributing to Azure AI.
