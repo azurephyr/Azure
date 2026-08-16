@@ -1,44 +1,72 @@
-# Azure
+# Azure AI
 
-**Open-source Discord operations, moderation, and agent framework.**
+**An experimental, open-source Discord operating platform.**
 
-Azure is being built as a modular control layer for Discord communities. The goal is to keep the core deterministic and testable while allowing Discord adapters, moderation engines, dashboards, and optional AI providers to plug into the same event-driven core.
+> **Status: VERY EARLY / EXTREMELY BETA.** Azure AI is actively being developed and is currently unstable. Features may fail, APIs may change, and some systems are not production-ready.
 
-> Status: early public development. APIs may change.
+Azure AI (also known as Azure / The Z / Adam-1 during development) is a modular Discord platform combining Discord operations, moderation, cognitive planning, multi-provider LLM inference, local-model support, memory/RAG, recovery systems, telemetry, and a web administration layer.
 
-## Design goals
+## What Azure is trying to become
 
-- **Core-first:** business logic lives in Azure Core rather than inside a Discord client.
-- **Auditable:** important state changes produce structured audit events.
-- **Safe by default:** permissions are explicit and destructive operations require authorization.
-- **Provider-neutral:** AI/LLM integrations are optional adapters, not a hard dependency.
-- **Testable:** moderation and policy decisions can run without Discord or network access.
-- **Extensible:** Discord, dashboard, API, and future clients should share one source of truth.
-
-## Architecture
+Azure is intended to provide a single operating layer for Discord communities rather than a collection of unrelated commands. Its architecture separates the Discord interface from intelligence and web administration so the underlying systems can be tested and evolved independently.
 
 ```text
-Discord adapter ─┐
-Dashboard/API ───┼──> Azure Core ──> Policy Engine
-Future clients ──┘         │              │
-                           ├──────────────┘
-                           ├── Event Bus
-                           ├── Audit Log
-                           └── Provider adapters (optional)
+                    Discord
+                       │
+                       ▼
+              ┌─────────────────┐
+              │  Discord Layer  │
+              │ bot/ + handlers │
+              └────────┬────────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ Intelligence    │
+              │ azure/          │
+              │                 │
+              │ Agent / Cognition│
+              │ Moderation      │
+              │ Tools           │
+              │ Memory / RAG    │
+              │ LLM routing     │
+              │ Recovery        │
+              │ Telemetry       │
+              └────────┬────────┘
+                       │
+                       ▼
+              ┌─────────────────┐
+              │ Web / Dashboard │
+              │ FastAPI + WS    │
+              └─────────────────┘
 ```
 
-Azure Core owns domain decisions. Clients translate external input into core events and render the results; they should not duplicate business rules.
+## Current systems
 
-## Current foundation
+The current development tree contains systems for:
 
-- Typed configuration and environment loading
-- Event model and in-process event bus
-- Structured audit records
-- Deterministic moderation rule engine
-- Permission/policy primitives
-- Discord adapter boundary
-- Pytest test suite
-- CI for supported Python versions
+- Discord gateway, commands, handlers, lifecycle and background tasks
+- Agent orchestration and intent routing
+- Cognitive planning and reasoning components
+- Rule-based and AI-assisted moderation components
+- Behavioral, temporal and risk analysis
+- Moderation action execution and confirmation gates
+- Multi-provider LLM failover and circuit breaking
+- Local GGUF model support
+- Memory and RAG systems
+- Autonomous recovery and self-repair experiments
+- Server health and configuration systems
+- Audit and telemetry infrastructure
+- Discord server/channel/role/member tooling
+- FastAPI APIs, WebSockets and administration pages
+- Voice and vision experiments
+
+## Development reality
+
+Azure is **not a finished product**. The repository is intended to document and develop the project openly while the architecture is stabilized.
+
+Some features have extensive automated tests, while other areas still require live Discord, dashboard, provider, concurrency, and failure-path validation. A passing unit test does not mean that Azure is production-ready.
+
+The maintainer's current RC1 snapshot reports more than 2,800 unit/integration assertions across the local test tree, alongside dedicated Discord scenario and end-to-end verification suites. These figures describe the development workspace and should not be interpreted as a guarantee of production reliability.
 
 ## Development
 
@@ -46,23 +74,34 @@ Azure Core owns domain decisions. Clients translate external input into core eve
 python -m venv .venv
 # Windows: .venv\Scripts\activate
 # Linux/macOS: source .venv/bin/activate
-pip install -e ".[dev]"
+pip install -r requirements.txt
 pytest
 ```
 
-## Roadmap
-
-1. Harden the core event and policy APIs.
-2. Build the Discord gateway/command adapter.
-3. Add persistent audit storage.
-4. Add moderation pipelines for spam, scams, raids, and toxicity.
-5. Add a secure dashboard/API on top of Azure Core.
-6. Add optional AI provider adapters with explicit policy gates.
-7. Build contributor tooling, documentation, and production deployment guides.
+For local-model development, see `models/README.md` when present in the development tree.
 
 ## Security
 
-Do not put Discord tokens, API keys, or other secrets in source control. See `SECURITY.md` for reporting guidance.
+**Never commit secrets.** Discord tokens, API keys, passwords, private server data, local databases, model weights, and other sensitive artifacts must remain outside the public repository.
+
+Use `.env.example` as the template for local configuration. The real `.env` file is intentionally ignored.
+
+See `SECURITY.md` for reporting guidance.
+
+## Contributing
+
+Azure is experimental, but contributions and technical feedback are welcome. See `CONTRIBUTING.md` before opening an issue or pull request.
+
+## Roadmap
+
+The current development priorities include:
+
+1. Stabilize the RC1 implementation and reconcile the public repository with the real development tree.
+2. Harden Discord command synchronization and application-command error handling.
+3. Expand dashboard Case Management and Reputation interfaces.
+4. Improve CI coverage for Discord scenario and end-to-end verification.
+5. Continue hardening moderation, recovery, provider failover, and concurrency behavior.
+6. Improve documentation and make safe parts of the system easier for contributors to run.
 
 ## License
 
