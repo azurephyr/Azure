@@ -1,0 +1,771 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure Analytics</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #000000;
+            --bg-dark: #0a0a0a;
+            --bg-surface: rgba(15, 15, 15, 0.6);
+            --bg-surface-hover: rgba(25, 25, 25, 0.8);
+            --border-subtle: rgba(255, 255, 255, 0.06);
+            --border-highlight: rgba(255, 255, 255, 0.12);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --text-tertiary: #6b7280;
+            --text-muted: #6b7280;
+            --text-light: #e5e7eb;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(59, 130, 246, 0.4);
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --accent-yellow: #f59e0b;
+            --danger: #ef4444;
+            --danger-glow: rgba(239, 68, 68, 0.4);
+            --success: #10b981;
+            --success-glow: rgba(16, 185, 129, 0.4);
+            --warning: #f59e0b;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-pill: 9999px;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            min-height: 100vh;
+            background-image:
+                radial-gradient(circle at 10% 0%, rgba(59,130,246,0.1) 0%, transparent 40%),
+                radial-gradient(circle at 90% 100%, rgba(139,92,246,0.1) 0%, transparent 40%);
+            background-color: var(--bg-base);
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: var(--radius-pill); }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        .topbar {
+            position: sticky; top: 0; z-index: 100;
+            height: 72px; padding: 0 40px;
+            display: flex; align-items: center; justify-content: space-between;
+            background: rgba(0,0,0,0.8); backdrop-filter: blur(24px);
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .topbar h1 {
+            font-size: 1.4rem; font-weight: 600;
+            background: linear-gradient(90deg, #fff, #9ca3af);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .topbar a {
+            color: var(--accent-primary); text-decoration: none;
+            font-size: 0.9rem; font-weight: 500;
+            padding: 8px 16px; border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            transition: all 0.2s;
+        }
+        .topbar a:hover {
+            background: rgba(59,130,246,0.1); border-color: var(--accent-primary);
+        }
+
+        .container { max-width: 1400px; margin: 0 auto; padding: 32px 40px 80px; }
+
+        .section { margin-bottom: 40px; }
+        .section-header {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .section-header h2 {
+            font-size: 1.1rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.05em; font-size: 0.75rem;
+        }
+        .section-header .controls {
+            display: flex; gap: 8px;
+        }
+        .section-header select, .section-header input {
+            padding: 6px 12px; background: rgba(0,0,0,0.4);
+            border: 1px solid var(--border-subtle); border-radius: 8px;
+            color: var(--text-primary); font-family: var(--font-sans);
+            font-size: 0.8rem; outline: none; width: auto;
+        }
+        .section-header select:focus, .section-header input:focus {
+            border-color: var(--accent-primary);
+        }
+
+        .glass-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(24px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            transition: all 0.3s;
+            position: relative; overflow: hidden;
+        }
+        .glass-card::before {
+            content: ''; position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .glass-card:hover { background: var(--bg-surface-hover); border-color: var(--border-highlight); }
+        .glass-card:hover::before { opacity: 1; }
+
+        .stat-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-mini { text-align: center; }
+        .stat-mini .label {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: var(--text-tertiary); margin-bottom: 4px;
+        }
+        .stat-mini .value {
+            font-size: 1.8rem; font-weight: 700;
+            background: linear-gradient(135deg, #fff, #a0a0a0);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .stat-mini .value.green { -webkit-text-fill-color: var(--accent-green); }
+        .stat-mini .value.red { -webkit-text-fill-color: var(--accent-red); }
+        .stat-mini .value.blue { -webkit-text-fill-color: var(--accent-blue); }
+        .stat-mini .value.yellow { -webkit-text-fill-color: var(--accent-yellow); }
+
+        /* Bar chart */
+        .bar-chart {
+            display: flex; align-items: flex-end; gap: 2px;
+            height: 160px; padding: 0 4px; margin-top: 12px;
+        }
+        .bar-chart .bar-wrapper {
+            flex: 1; display: flex; flex-direction: column; align-items: center;
+            height: 100%; justify-content: flex-end; position: relative;
+        }
+        .bar-chart .bar {
+            width: 100%; min-height: 2px; border-radius: 3px 3px 0 0;
+            background: linear-gradient(180deg, var(--accent-primary), var(--accent-secondary));
+            transition: height 0.4s cubic-bezier(0.4,0,0.2,1);
+            position: relative;
+        }
+        .bar-chart .bar:hover { filter: brightness(1.2); }
+        .bar-chart .bar-label {
+            font-size: 0.6rem; color: var(--text-tertiary);
+            margin-top: 4px; text-align: center;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            max-width: 100%;
+        }
+        .bar-chart .bar-tooltip {
+            display: none; position: absolute; top: -28px; left: 50%;
+            transform: translateX(-50%); background: rgba(0,0,0,0.9);
+            color: #fff; padding: 2px 8px; border-radius: 4px;
+            font-size: 0.7rem; white-space: nowrap; z-index: 10;
+            border: 1px solid var(--border-subtle);
+        }
+        .bar-chart .bar-wrapper:hover .bar-tooltip { display: block; }
+
+        /* Horizontal bar chart */
+        .hbar-chart { display: flex; flex-direction: column; gap: 8px; }
+        .hbar-row { display: flex; align-items: center; gap: 12px; }
+        .hbar-label {
+            width: 120px; font-size: 0.8rem; color: var(--text-secondary);
+            text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+        }
+        .hbar-track {
+            flex: 1; height: 24px; background: rgba(255,255,255,0.03);
+            border-radius: 6px; overflow: hidden; position: relative;
+        }
+        .hbar-fill {
+            height: 100%; border-radius: 6px;
+            transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+            display: flex; align-items: center; padding-left: 8px;
+        }
+        .hbar-fill span {
+            font-size: 0.7rem; font-weight: 600; color: #fff;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        /* Provider cards */
+        .provider-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px;
+        }
+        .provider-card {
+            background: rgba(0,0,0,0.3); border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md); padding: 18px;
+        }
+        .provider-card .name {
+            font-size: 0.95rem; font-weight: 600; margin-bottom: 10px;
+            display: flex; align-items: center; gap: 8px;
+        }
+        .provider-card .dot {
+            width: 8px; height: 8px; border-radius: 50%;
+        }
+        .provider-card .dot.healthy { background: var(--accent-green); box-shadow: 0 0 8px var(--success-glow); }
+        .provider-card .dot.degraded { background: var(--accent-yellow); box-shadow: 0 0 8px rgba(245,158,11,0.4); }
+        .provider-card .dot.down { background: var(--accent-red); box-shadow: 0 0 8px var(--danger-glow); }
+        .provider-card .dot.unknown { background: var(--text-tertiary); }
+        .provider-card .metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .provider-card .metric { }
+        .provider-card .metric .ml { font-size: 0.65rem; color: var(--text-tertiary); text-transform: uppercase; }
+        .provider-card .metric .mv { font-size: 0.95rem; font-weight: 600; color: var(--text-light); }
+        .provider-card .metric .mv.green { color: var(--accent-green); }
+        .provider-card .metric .mv.red { color: var(--accent-red); }
+        .provider-card .metric .mv.yellow { color: var(--accent-yellow); }
+
+        /* Table */
+        .data-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .data-table th, .data-table td {
+            padding: 12px 16px; text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .data-table th {
+            color: var(--text-tertiary); font-weight: 600; font-size: 0.7rem;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            background: rgba(0,0,0,0.2);
+        }
+        .data-table th:first-child { border-top-left-radius: var(--radius-md); }
+        .data-table th:last-child { border-top-right-radius: var(--radius-md); }
+        .data-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .data-table td { font-size: 0.85rem; color: var(--text-secondary); }
+
+        .badge {
+            display: inline-block; padding: 3px 10px; border-radius: var(--radius-pill);
+            font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+        }
+        .badge.green { background: rgba(16,185,129,0.1); color: var(--accent-green); border: 1px solid rgba(16,185,129,0.3); }
+        .badge.red { background: rgba(239,68,68,0.1); color: var(--accent-red); border: 1px solid rgba(239,68,68,0.3); }
+        .badge.yellow { background: rgba(245,158,11,0.1); color: var(--accent-yellow); border: 1px solid rgba(245,158,11,0.3); }
+        .badge.blue { background: rgba(59,130,246,0.1); color: var(--accent-blue); border: 1px solid rgba(59,130,246,0.3); }
+        .badge.gray { background: rgba(107,114,128,0.1); color: var(--text-tertiary); border: 1px solid rgba(107,114,128,0.3); }
+
+        /* Severity distribution */
+        .severity-bars { display: flex; gap: 4px; height: 12px; border-radius: 6px; overflow: hidden; margin-top: 8px; }
+        .severity-bars > div { height: 100%; transition: width 0.4s; }
+
+        /* Error log */
+        .error-list { max-height: 500px; overflow-y: auto; }
+        .error-item {
+            padding: 12px 16px; border-bottom: 1px solid var(--border-subtle);
+            display: flex; gap: 12px; align-items: flex-start;
+        }
+        .error-item:hover { background: rgba(255,255,255,0.02); }
+        .error-item .etime {
+            font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+            color: var(--text-tertiary); white-space: nowrap; min-width: 140px;
+        }
+        .error-item .esource {
+            font-size: 0.7rem; font-weight: 600; text-transform: uppercase;
+            padding: 2px 8px; border-radius: 4px;
+            background: rgba(239,68,68,0.1); color: var(--accent-red);
+            white-space: nowrap;
+        }
+        .error-item .emsg { font-size: 0.8rem; color: var(--text-secondary); flex: 1; word-break: break-word; }
+
+        /* Loading */
+        .loading {
+            text-align: center; padding: 40px; color: var(--text-tertiary);
+            font-style: italic;
+        }
+        .spinner {
+            display: inline-block; width: 20px; height: 20px;
+            border: 2px solid var(--border-subtle); border-top-color: var(--accent-primary);
+            border-radius: 50%; animation: spin 0.8s linear infinite;
+            vertical-align: middle; margin-right: 8px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        @keyframes slideUpFade {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in { animation: slideUpFade 0.5s ease-out forwards; }
+
+        /* Touch-friendly */
+        select, input, button { min-height: 44px; }
+
+        @media (max-width: 768px) {
+            .topbar { height: 60px; padding: 0 16px; }
+            .topbar h1 { font-size: 1.1rem; }
+            .topbar a { padding: 6px 12px; font-size: 0.82rem; }
+            .container { padding: 20px 16px 60px; }
+            .section { margin-bottom: 28px; }
+            .section-header { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .section-header .controls { width: 100%; }
+            .section-header select, .section-header input { width: 100%; min-width: 0; }
+            .glass-card { padding: 20px; }
+            .stat-grid { grid-template-columns: 1fr 1fr; gap: 12px; }
+            .stat-mini .value { font-size: 1.4rem; }
+            .provider-grid { grid-template-columns: 1fr; }
+            .bar-chart { height: 120px; }
+            .bar-chart .bar-label { font-size: 0.55rem; }
+            .hbar-label { width: 80px; font-size: 0.7rem; }
+            .hbar-fill span { font-size: 0.6rem; }
+            .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .data-table thead { display: none; }
+            .data-table tbody tr { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
+            .data-table tbody td { padding: 4px 0; border-bottom: none; display: flex; justify-content: space-between; align-items: center; }
+            .data-table tbody td::before { content: attr(data-label); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; color: var(--text-tertiary); }
+            .error-item { flex-direction: column; gap: 6px; }
+            .error-item .etime { min-width: auto; }
+            .error-item .esource { align-self: flex-start; }
+            .error-list { max-height: 400px; }
+        }
+
+        @media (max-width: 480px) {
+            .topbar h1 { font-size: 0.95rem; }
+            .topbar a { padding: 6px 10px; font-size: 0.78rem; }
+            .container { padding: 16px 12px 60px; }
+            .glass-card { padding: 16px; }
+            .stat-grid { grid-template-columns: 1fr; }
+            .stat-mini .value { font-size: 1.2rem; }
+            .bar-chart { height: 100px; }
+            .section-header h2 { font-size: 0.7rem; }
+            .provider-card .metrics { grid-template-columns: 1fr; }
+            .error-item .emsg { font-size: 0.75rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <h1>Azure Deep Analytics</h1>
+        <a href="/">&#8592; Back to Dashboard</a>
+    </div>
+
+    <div class="container">
+
+        <!-- 1. Message Volume Analysis -->
+        <div class="section fade-in">
+            <div class="section-header">
+                <h2>Message Volume Analysis</h2>
+                <div class="controls">
+                    <select id="volume-days" onchange="loadVolume()">
+                        <option value="1">Last 24h</option>
+                        <option value="3">Last 3 days</option>
+                        <option value="7" selected>Last 7 days</option>
+                        <option value="30">Last 30 days</option>
+                    </select>
+                </div>
+            </div>
+            <div class="glass-card">
+                <div class="stat-grid" id="volume-stats"></div>
+                <h3 style="font-size:0.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Hourly Volume</h3>
+                <div id="hourly-chart" class="bar-chart"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+                <h3 style="font-size:0.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin:24px 0 8px;">Daily Volume</h3>
+                <div id="daily-chart" class="bar-chart"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- 2. Provider Performance -->
+        <div class="section fade-in">
+            <div class="section-header">
+                <h2>Provider Performance</h2>
+            </div>
+            <div class="glass-card">
+                <div class="stat-grid" id="provider-stats"></div>
+                <div id="provider-grid" class="provider-grid"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- 3. Moderation Stats -->
+        <div class="section fade-in">
+            <div class="section-header">
+                <h2>Moderation Stats</h2>
+            </div>
+            <div class="glass-card">
+                <div class="stat-grid" id="mod-stats"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:16px;">
+                    <div>
+                        <h3 style="font-size:0.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Severity Distribution</h3>
+                        <div id="severity-chart" class="hbar-chart"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+                    </div>
+                    <div>
+                        <h3 style="font-size:0.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Category Breakdown</h3>
+                        <div id="category-chart" class="hbar-chart"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. User Activity -->
+        <div class="section fade-in">
+            <div class="section-header">
+                <h2>User Activity</h2>
+            </div>
+            <div class="glass-card">
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+                    <div>
+                        <h3 style="font-size:0.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Most Active Users</h3>
+                        <div id="user-list"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+                    </div>
+                    <div>
+                        <h3 style="font-size:0.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:12px;">Hourly Activity Pattern</h3>
+                        <div id="activity-pattern" class="bar-chart"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. LLM Cost Tracker -->
+        <div class="section fade-in">
+            <div class="section-header">
+                <h2>LLM Cost Tracker</h2>
+            </div>
+            <div class="glass-card">
+                <div class="stat-grid" id="cost-stats"></div>
+                <h3 style="font-size:0.7rem;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Daily Token Usage</h3>
+                <div id="token-chart" class="bar-chart"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+            </div>
+        </div>
+
+        <!-- 6. Health Trend -->
+        <div class="section fade-in">
+            <div class="section-header">
+                <h2>Health Trend</h2>
+            </div>
+            <div class="glass-card">
+                <div class="stat-grid" id="health-stats"></div>
+                <div id="health-grid" class="provider-grid"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+                <div id="health-saved" style="margin-top:12px;font-size:0.75rem;color:var(--text-tertiary);"></div>
+            </div>
+        </div>
+
+        <!-- 7. Error Log -->
+        <div class="section fade-in">
+            <div class="section-header">
+                <h2>Error Log</h2>
+                <div class="controls">
+                    <input type="text" id="error-filter" placeholder="Filter errors..." oninput="filterErrors()" style="width:220px;">
+                </div>
+            </div>
+            <div class="glass-card">
+                <div class="error-list" id="error-list"><div class="loading"><span class="spinner"></span>Loading...</div></div>
+            </div>
+        </div>
+
+    </div>
+
+<script>
+const API = '/api/analytics';
+let TOKEN = localStorage.getItem('azure_token') || '';
+
+if (!TOKEN) { window.location.href = '/'; }
+
+const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000;
+
+async function validateAndRefreshToken() {
+    if (!TOKEN) { window.location.href = '/'; return; }
+    try {
+        const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+        if (r.status === 401) {
+            TOKEN = null;
+            localStorage.removeItem('azure_token');
+            window.location.href = '/';
+            return;
+        }
+    } catch {}
+    try {
+        const res = await fetch('/api/auth/refresh', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: TOKEN })
+        });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.access_token && data.access_token !== TOKEN) {
+                TOKEN = data.access_token;
+                localStorage.setItem('azure_token', TOKEN);
+            }
+        }
+    } catch {}
+}
+validateAndRefreshToken();
+setInterval(validateAndRefreshToken, TOKEN_CHECK_INTERVAL);
+
+async function api(path, params = {}) {
+    const qs = new URLSearchParams(params).toString();
+    const url = API + path + (qs ? '?' + qs : '');
+    try {
+        const res = await fetch(url, {
+            headers: { 'Authorization': 'Bearer ' + TOKEN }
+        });
+        if (res.status === 401) { window.location.href = '/'; return null; }
+        if (!res.ok) return null;
+        return await res.json();
+    } catch { return null; }
+}
+
+function fmtNum(n) {
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return (n / 1e3).toFixed(1) + 'K';
+    return String(n);
+}
+
+function fmtTime(ts) {
+    if (!ts) return '—';
+    const d = new Date(ts * 1000);
+    return d.toLocaleString();
+}
+
+function fmtShort(ts) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+}
+
+function barColor(i) {
+    const colors = ['var(--accent-blue)', 'var(--accent-purple)', 'var(--accent-green)', 'var(--accent-yellow)', 'var(--accent-red)'];
+    return colors[i % colors.length];
+}
+
+function renderBarChart(container, data, maxBars, labelFn) {
+    const entries = Object.entries(data).slice(-(maxBars || 24));
+    if (!entries.length) {
+        container.innerHTML = '<div style="color:var(--text-tertiary);padding:20px;text-align:center;">No data available</div>';
+        return;
+    }
+    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    container.innerHTML = entries.map(([label, val]) => {
+        const pct = (val / maxVal * 100);
+        const display = labelFn ? labelFn(label) : label.slice(-5);
+        return `<div class="bar-wrapper">
+            <div class="bar-tooltip">${label}: ${val}</div>
+            <div class="bar" style="height:${Math.max(pct, 1)}%"></div>
+            <div class="bar-label">${display}</div>
+        </div>`;
+    }).join('');
+}
+
+function renderHBarChart(container, data, color) {
+    const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+    if (!entries.length) {
+        container.innerHTML = '<div style="color:var(--text-tertiary);padding:20px;text-align:center;">No data</div>';
+        return;
+    }
+    const maxVal = Math.max(...entries.map(e => e[1]), 1);
+    container.innerHTML = entries.map(([label, val]) => {
+        const pct = (val / maxVal * 100);
+        return `<div class="hbar-row">
+            <div class="hbar-label">${label}</div>
+            <div class="hbar-track">
+                <div class="hbar-fill" style="width:${Math.max(pct, 2)}%;background:${color || 'var(--accent-primary)'}">
+                    <span>${val}</span>
+                </div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+let allErrors = [];
+
+// --- 1. Message Volume ---
+async function loadVolume() {
+    const days = document.getElementById('volume-days').value;
+    const data = await api('/message-volume', { days });
+    if (!data) return;
+
+    const hourly = data.hourly || {};
+    const daily = data.daily || {};
+    const totalMsgs = Object.values(daily).reduce((a, b) => a + b, 0);
+    const peakDay = Object.entries(daily).sort((a, b) => b[1] - a[1])[0];
+
+    document.getElementById('volume-stats').innerHTML = `
+        <div class="stat-mini"><div class="label">Total Messages</div><div class="value blue">${fmtNum(totalMsgs)}</div></div>
+        <div class="stat-mini"><div class="label">Days Tracked</div><div class="value">${Object.keys(daily).length}</div></div>
+        <div class="stat-mini"><div class="label">Avg / Day</div><div class="value">${fmtNum(Object.keys(daily).length ? Math.round(totalMsgs / Object.keys(daily).length) : 0)}</div></div>
+        <div class="stat-mini"><div class="label">Peak Day</div><div class="value green">${peakDay ? fmtNum(peakDay[1]) : '—'}</div></div>
+    `;
+
+    renderBarChart(document.getElementById('hourly-chart'), hourly, 48, l => {
+        const parts = l.split(' ');
+        return parts.length > 1 ? parts[1].slice(0, 5) : l.slice(-5);
+    });
+    renderBarChart(document.getElementById('daily-chart'), daily, 30, l => l.slice(5));
+}
+
+// --- 2. Provider Performance ---
+async function loadProviders() {
+    const data = await api('/provider-performance');
+    if (!data) return;
+
+    const providers = data.providers || {};
+    const names = Object.keys(providers);
+    const healthyCount = names.filter(n => providers[n].success_rate >= 90).length;
+
+    document.getElementById('provider-stats').innerHTML = `
+        <div class="stat-mini"><div class="label">Providers</div><div class="value blue">${names.length}</div></div>
+        <div class="stat-mini"><div class="label">Healthy</div><div class="value green">${healthyCount}</div></div>
+        <div class="stat-mini"><div class="label">Avg Latency</div><div class="value">${data.avg_latency_ms || 0}ms</div></div>
+    `;
+
+    document.getElementById('provider-grid').innerHTML = names.map(name => {
+        const p = providers[name];
+        const healthCls = p.consecutive_failures >= 3 ? 'down' : p.consecutive_failures > 0 ? 'degraded' : (p.total > 0 ? 'healthy' : 'unknown');
+        const rateCls = p.success_rate >= 90 ? 'green' : p.success_rate >= 50 ? 'yellow' : 'red';
+        return `<div class="provider-card">
+            <div class="name"><span class="dot ${healthCls}"></span>${name}</div>
+            <div class="metrics">
+                <div class="metric"><div class="ml">Success Rate</div><div class="mv ${rateCls}">${p.success_rate}%</div></div>
+                <div class="metric"><div class="ml">Total Calls</div><div class="mv">${p.total}</div></div>
+                <div class="metric"><div class="ml">Failures</div><div class="mv ${p.failure > 0 ? 'red' : ''}">${p.failure}</div></div>
+                <div class="metric"><div class="ml">API Key</div><div class="mv">${p.has_api_key ? '<span class="badge green">Configured</span>' : '<span class="badge gray">Missing</span>'}</div></div>
+                <div class="metric"><div class="ml">RPM Left</div><div class="mv">${p.rpm_remaining}/${p.rpm_limit}</div></div>
+                <div class="metric"><div class="ml">Consec. Fails</div><div class="mv ${p.consecutive_failures > 0 ? 'yellow' : ''}">${p.consecutive_failures}</div></div>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+// --- 3. Moderation Stats ---
+async function loadModeration() {
+    const data = await api('/moderation-stats');
+    if (!data) return;
+
+    const sev = data.severity || {};
+    const totalSev = Object.values(sev).reduce((a, b) => a + b, 0);
+
+    document.getElementById('mod-stats').innerHTML = `
+        <div class="stat-mini"><div class="label">Total Actions</div><div class="value blue">${fmtNum(data.total)}</div></div>
+        <div class="stat-mini"><div class="label">Violations</div><div class="value red">${data.violations}</div></div>
+        <div class="stat-mini"><div class="label">Dry Run</div><div class="value yellow">${data.dry_run_count}</div></div>
+        <div class="stat-mini"><div class="label">Categories</div><div class="value">${Object.keys(data.categories || {}).length}</div></div>
+    `;
+
+    const sevColors = {
+        none: 'var(--text-tertiary)', low: 'var(--accent-green)',
+        medium: 'var(--accent-yellow)', high: 'var(--accent-red)', critical: '#dc2626'
+    };
+    renderHBarChart(document.getElementById('severity-chart'), sev, sevColors[Object.keys(sev)[0]] || 'var(--accent-primary)');
+    renderHBarChart(document.getElementById('category-chart'), data.categories || {}, 'var(--accent-purple)');
+}
+
+// --- 4. User Activity ---
+async function loadUsers() {
+    const data = await api('/user-activity', { days: 7 });
+    if (!data) return;
+
+    const topUsers = data.top_users || [];
+    const maxCount = topUsers.length ? topUsers[0].count : 1;
+
+    document.getElementById('user-list').innerHTML = topUsers.length
+        ? '<table class="data-table"><thead><tr><th>#</th><th>User</th><th>Messages</th><th></th></tr></thead><tbody>' +
+          topUsers.map((u, i) => {
+              const pct = (u.count / maxCount * 100);
+              return `<tr>
+                  <td style="color:var(--text-tertiary)">${i + 1}</td>
+                  <td style="color:var(--text-primary);font-weight:500">${u.name}</td>
+                  <td>${fmtNum(u.count)}</td>
+                  <td style="width:120px"><div style="height:6px;background:rgba(255,255,255,0.05);border-radius:3px;overflow:hidden;">
+                      <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,var(--accent-blue),var(--accent-purple));border-radius:3px;"></div>
+                  </div></td>
+              </tr>`;
+          }).join('') + '</tbody></table>'
+        : '<div style="color:var(--text-tertiary);padding:20px;text-align:center;">No user data</div>';
+
+    renderBarChart(document.getElementById('activity-pattern'), data.hourly_pattern || {}, 24, l => l + 'h');
+}
+
+// --- 5. Cost Tracker ---
+async function loadCost() {
+    const data = await api('/cost-tracker', { days: 7 });
+    if (!data) return;
+
+    document.getElementById('cost-stats').innerHTML = `
+        <div class="stat-mini"><div class="label">Total Tokens</div><div class="value blue">${fmtNum(data.total_tokens)}</div></div>
+        <div class="stat-mini"><div class="label">Estimated Cost</div><div class="value green">$${data.estimated_cost.toFixed(4)}</div></div>
+        <div class="stat-mini"><div class="label">Days Tracked</div><div class="value">${Object.keys(data.daily || {}).length}</div></div>
+        <div class="stat-mini"><div class="label">Avg / Day</div><div class="value">${fmtNum(Object.keys(data.daily || {}).length ? Math.round(data.total_tokens / Object.keys(data.daily).length) : 0)} tokens</div></div>
+    `;
+
+    renderBarChart(document.getElementById('token-chart'), data.daily || {}, 30, l => l.slice(5));
+}
+
+// --- 6. Health Trend ---
+async function loadHealth() {
+    const data = await api('/health-trend');
+    if (!data) return;
+
+    const providers = data.providers || {};
+    const names = Object.keys(providers);
+    const healthy = names.filter(n => providers[n].healthy).length;
+
+    document.getElementById('health-stats').innerHTML = `
+        <div class="stat-mini"><div class="label">Providers</div><div class="value blue">${names.length}</div></div>
+        <div class="stat-mini"><div class="label">Healthy</div><div class="value green">${healthy}</div></div>
+        <div class="stat-mini"><div class="label">Degraded</div><div class="value yellow">${names.length - healthy}</div></div>
+    `;
+
+    document.getElementById('health-grid').innerHTML = names.map(name => {
+        const p = providers[name];
+        const statusCls = p.healthy ? 'healthy' : 'down';
+        const statusLabel = p.healthy ? 'Healthy' : 'Degraded';
+        return `<div class="provider-card">
+            <div class="name"><span class="dot ${statusCls}"></span>${name}</div>
+            <div class="metrics">
+                <div class="metric"><div class="ml">Status</div><div class="mv ${p.healthy ? 'green' : 'red'}">${statusLabel}</div></div>
+                <div class="metric"><div class="ml">Success / Fail</div><div class="mv">${p.success_count} / ${p.failure_count}</div></div>
+                <div class="metric"><div class="ml">Consec. Fails</div><div class="mv ${p.consecutive_failures > 0 ? 'yellow' : ''}">${p.consecutive_failures}</div></div>
+                <div class="metric"><div class="ml">Total</div><div class="mv">${p.total}</div></div>
+            </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('health-saved').textContent = data.saved_at ? 'Last saved: ' + new Date(data.saved_at).toLocaleString() : '';
+}
+
+// --- 7. Error Log ---
+async function loadErrors() {
+    const data = await api('/errors', { limit: 200 });
+    if (!data) return;
+
+    allErrors = data.errors || [];
+    renderErrors(allErrors);
+}
+
+function renderErrors(errors) {
+    const el = document.getElementById('error-list');
+    if (!errors.length) {
+        el.innerHTML = '<div style="color:var(--text-tertiary);padding:40px;text-align:center;">No errors found</div>';
+        return;
+    }
+    el.innerHTML = errors.map(e => `<div class="error-item">
+        <div class="etime">${fmtShort(e.timestamp)}</div>
+        <div class="esource">${e.source}</div>
+        <div class="emsg"><strong>${e.operation || ''}</strong> ${e.message || ''} ${e.guild ? '(' + e.guild + ')' : ''}</div>
+    </div>`).join('');
+}
+
+function filterErrors() {
+    const q = document.getElementById('error-filter').value.toLowerCase();
+    if (!q) return renderErrors(allErrors);
+    renderErrors(allErrors.filter(e =>
+        (e.message || '').toLowerCase().includes(q) ||
+        (e.operation || '').toLowerCase().includes(q) ||
+        (e.source || '').toLowerCase().includes(q) ||
+        (e.guild || '').toLowerCase().includes(q)
+    ));
+}
+
+// --- Init ---
+(async function init() {
+    await Promise.all([
+        loadVolume(),
+        loadProviders(),
+        loadModeration(),
+        loadUsers(),
+        loadCost(),
+        loadHealth(),
+        loadErrors(),
+    ]);
+})();
+</script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/nav-inject.js"></script>
+</body>
+</html>

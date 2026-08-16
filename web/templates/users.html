@@ -1,0 +1,1205 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure - User Management</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/index.css">
+    <style>
+        .users-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .users-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+
+        .users-header h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(90deg, #fff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .search-filter-bar {
+            display: flex;
+            gap: 12px;
+            flex: 1;
+            max-width: 600px;
+        }
+
+        .search-filter-bar input {
+            flex: 1;
+        }
+
+        .search-filter-bar select {
+            width: 160px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .stat-mini-card {
+            padding: 20px;
+            border-radius: var(--radius-md);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(24px);
+            transition: all 0.2s ease;
+        }
+
+        .stat-mini-card:hover {
+            border-color: var(--border-highlight);
+            transform: translateY(-2px);
+        }
+
+        .stat-mini-card .label {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-tertiary);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .stat-mini-card .value {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff, #a0a0a0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stat-mini-card.risk-high .value {
+            background: linear-gradient(135deg, var(--danger), #ff6b6b);
+            -webkit-background-clip: text;
+        }
+
+        .stat-mini-card.risk-high {
+            border-color: rgba(239, 68, 68, 0.2);
+        }
+
+        .bulk-actions-bar {
+            display: none;
+            align-items: center;
+            gap: 12px;
+            padding: 16px 20px;
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: var(--radius-md);
+            animation: slideUpFade 0.2s ease;
+        }
+
+        .bulk-actions-bar.visible {
+            display: flex;
+        }
+
+        .bulk-actions-bar .selected-count {
+            color: var(--accent-primary);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .bulk-actions-bar .bulk-btns {
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .user-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+
+        .user-card {
+            padding: 24px;
+            border-radius: var(--radius-lg);
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(24px);
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .user-card:hover {
+            background: var(--bg-surface-hover);
+            border-color: var(--border-highlight);
+            transform: translateY(-4px);
+            box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.9);
+        }
+
+        .user-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        }
+
+        .user-card.risk-low::before { background: var(--success); }
+        .user-card.risk-medium::before { background: var(--warning); }
+        .user-card.risk-high::before { background: var(--danger); }
+
+        .user-card.selected {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+
+        .user-card-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 16px;
+        }
+
+        .user-avatar {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.1rem;
+            color: white;
+            flex-shrink: 0;
+        }
+
+        .user-avatar.level-1 { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+        .user-avatar.level-2 { background: linear-gradient(135deg, #8b5cf6, #7c3aed); }
+        .user-avatar.level-3 { background: linear-gradient(135deg, #10b981, #059669); }
+        .user-avatar.level-4 { background: linear-gradient(135deg, #f59e0b, #d97706); }
+        .user-avatar.level-5 { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+        .user-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-id {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .risk-badge {
+            padding: 4px 10px;
+            border-radius: var(--radius-pill);
+            font-size: 0.7rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .risk-badge.low {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .risk-badge.medium {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .risk-badge.high {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            animation: pulse 2s infinite;
+        }
+
+        .user-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 12px;
+        }
+
+        .user-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .user-stat .stat-label {
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .user-stat .stat-value {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .user-card-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 16px;
+            padding-top: 12px;
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .last-active {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+        }
+
+        .checkbox-wrapper {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 2px solid var(--border-highlight);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .checkbox-wrapper:hover {
+            border-color: var(--accent-primary);
+        }
+
+        .checkbox-wrapper.checked {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+        }
+
+        .checkbox-wrapper.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 40px;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal {
+            width: 100%;
+            max-width: 900px;
+            max-height: 90vh;
+            background: var(--bg-dark);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            animation: slideUpFade 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 24px 28px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+
+        .modal-header .user-detail-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .modal-header .user-detail-avatar {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.3rem;
+            color: white;
+        }
+
+        .modal-header .user-detail-name {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .modal-header .user-detail-id {
+            font-size: 0.85rem;
+            color: var(--text-tertiary);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .modal-close {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 1px solid var(--border-subtle);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(239, 68, 68, 0.1);
+            border-color: rgba(239, 68, 68, 0.3);
+            color: var(--danger);
+        }
+
+        .modal-tabs {
+            display: flex;
+            border-bottom: 1px solid var(--border-subtle);
+            padding: 0 28px;
+        }
+
+        .modal-tab {
+            padding: 14px 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s ease;
+        }
+
+        .modal-tab:hover {
+            color: var(--text-secondary);
+        }
+
+        .modal-tab.active {
+            color: var(--accent-primary);
+            border-bottom-color: var(--accent-primary);
+        }
+
+        .modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 28px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: slideUpFade 0.3s ease;
+        }
+
+        .profile-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .profile-stat {
+            padding: 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .profile-stat .label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: var(--text-tertiary);
+            margin-bottom: 6px;
+        }
+
+        .profile-stat .value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .activity-timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 16px;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--border-subtle);
+            position: relative;
+        }
+
+        .timeline-item:last-child {
+            border-bottom: none;
+        }
+
+        .timeline-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-primary);
+            margin-top: 6px;
+            flex-shrink: 0;
+            position: relative;
+        }
+
+        .timeline-dot::after {
+            content: '';
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: calc(100% + 22px);
+            background: var(--border-subtle);
+        }
+
+        .timeline-item:last-child .timeline-dot::after {
+            display: none;
+        }
+
+        .timeline-dot.action-warn { background: var(--warning); }
+        .timeline-dot.action-ban { background: var(--danger); }
+        .timeline-dot.action-msg { background: var(--accent-green); }
+
+        .timeline-content {
+            flex: 1;
+        }
+
+        .timeline-action {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+
+        .timeline-detail {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+        }
+
+        .timeline-time {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .message-history {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .message-item {
+            padding: 12px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+        }
+
+        .message-item .msg-text {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .message-item .msg-time {
+            font-size: 0.75rem;
+            color: var(--text-tertiary);
+            margin-top: 6px;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .knowledge-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .knowledge-item {
+            padding: 14px 16px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-subtle);
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .knowledge-item .k-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: rgba(59, 130, 246, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            font-size: 0.9rem;
+        }
+
+        .knowledge-item .k-content {
+            flex: 1;
+        }
+
+        .knowledge-item .k-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+            color: var(--text-primary);
+        }
+
+        .knowledge-item .k-detail {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            margin-top: 2px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 48px;
+            color: var(--text-tertiary);
+        }
+
+        .empty-state .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+
+        .empty-state p {
+            font-size: 0.95rem;
+        }
+
+        .select-all-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 4px;
+            margin-bottom: 8px;
+        }
+
+        .select-all-bar label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        .risk-score-bar {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 3px;
+            margin-top: 12px;
+            overflow: hidden;
+        }
+
+        .risk-score-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 0.4s ease;
+        }
+
+        .risk-score-fill.low { background: var(--success); }
+        .risk-score-fill.medium { background: var(--warning); }
+        .risk-score-fill.high { background: var(--danger); }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div id="users-view" class="view active">
+            <aside class="sidebar glass-panel">
+                <div class="sidebar-header">
+                    <div class="logo-orb small"></div>
+                    <h2>Azure Core</h2>
+                </div>
+                <nav>
+                    <a href="/" class="nav-item">
+                        <span class="icon">📊</span> Dashboard
+                    </a>
+                    <a href="/users" class="nav-item active">
+                        <span class="icon">👥</span> Users
+                    </a>
+                </nav>
+                <div class="sidebar-footer">
+                    <div class="ws-status offline" id="ws-indicator">Offline</div>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <header class="topbar glass-panel">
+                    <h2>User Management</h2>
+                    <div class="user-profile">
+                        <span class="badge role-owner">Admin</span>
+                    </div>
+                </header>
+
+                <div class="content-scroll">
+                    <div class="users-layout">
+                        <div class="users-header">
+                            <div class="search-filter-bar">
+                                <input type="text" id="user-search" placeholder="Search users by name or ID...">
+                                <select id="filter-risk">
+                                    <option value="">All Risk Levels</option>
+                                    <option value="low">Low Risk</option>
+                                    <option value="medium">Medium Risk</option>
+                                    <option value="high">High Risk</option>
+                                </select>
+                                <select id="filter-activity">
+                                    <option value="">All Activity</option>
+                                    <option value="active">Active Today</option>
+                                    <option value="week">Active This Week</option>
+                                    <option value="inactive">Inactive</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="stats-grid" id="user-stats">
+                            <div class="stat-mini-card">
+                                <div class="label">Total Users</div>
+                                <div class="value" id="stat-total">0</div>
+                            </div>
+                            <div class="stat-mini-card">
+                                <div class="label">Active Today</div>
+                                <div class="value" id="stat-active-today">0</div>
+                            </div>
+                            <div class="stat-mini-card">
+                                <div class="label">New This Week</div>
+                                <div class="value" id="stat-new-week">0</div>
+                            </div>
+                            <div class="stat-mini-card risk-high">
+                                <div class="label">High Risk</div>
+                                <div class="value" id="stat-high-risk">0</div>
+                            </div>
+                        </div>
+
+                        <div class="bulk-actions-bar" id="bulk-actions">
+                            <span class="selected-count"><span id="selected-count">0</span> users selected</span>
+                            <div class="bulk-btns">
+                                <button class="btn secondary small" onclick="bulkAction('review')">Flag for Review</button>
+                                <button class="btn danger small" onclick="bulkAction('ban')">Ban Users</button>
+                                <button class="btn secondary small" onclick="clearSelection()">Cancel</button>
+                            </div>
+                        </div>
+
+                        <div class="select-all-bar">
+                            <div class="checkbox-wrapper" id="select-all-checkbox" onclick="toggleSelectAll()"></div>
+                            <label onclick="toggleSelectAll()">Select All</label>
+                        </div>
+
+                        <div class="user-grid" id="user-grid">
+                            <div class="empty-state">
+                                <div class="empty-icon">👥</div>
+                                <p>Loading users...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- User Detail Modal -->
+        <div class="modal-overlay" id="user-modal">
+            <div class="modal">
+                <div class="modal-header">
+                    <div class="user-detail-header">
+                        <div class="user-detail-avatar" id="modal-avatar"></div>
+                        <div>
+                            <div class="user-detail-name" id="modal-name"></div>
+                            <div class="user-detail-id" id="modal-id"></div>
+                        </div>
+                        <span class="risk-badge" id="modal-risk-badge"></span>
+                    </div>
+                    <button class="modal-close" onclick="closeModal()">&times;</button>
+                </div>
+                <div class="modal-tabs">
+                    <div class="modal-tab active" data-tab="profile" onclick="switchTab('profile')">Profile</div>
+                    <div class="modal-tab" data-tab="messages" onclick="switchTab('messages')">Messages</div>
+                    <div class="modal-tab" data-tab="activity" onclick="switchTab('activity')">Activity</div>
+                    <div class="modal-tab" data-tab="moderation" onclick="switchTab('moderation')">Moderation</div>
+                    <div class="modal-tab" data-tab="knowledge" onclick="switchTab('knowledge')">Knowledge</div>
+                </div>
+                <div class="modal-body">
+                    <div class="tab-content active" id="tab-profile">
+                        <div class="profile-stats" id="modal-profile-stats"></div>
+                        <div id="modal-behavioral-profile"></div>
+                    </div>
+                    <div class="tab-content" id="tab-messages">
+                        <div class="message-history" id="modal-messages"></div>
+                    </div>
+                    <div class="tab-content" id="tab-activity">
+                        <div class="activity-timeline" id="modal-activity"></div>
+                    </div>
+                    <div class="tab-content" id="tab-moderation">
+                        <div id="modal-moderation-history"></div>
+                    </div>
+                    <div class="tab-content" id="tab-knowledge">
+                        <div class="knowledge-list" id="modal-knowledge"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const API_BASE = '';
+        const TOKEN = localStorage.getItem('azure_token');
+        if (!TOKEN) { window.location.href = '/'; return; }
+
+        let allUsers = [];
+        let selectedUsers = new Set();
+        const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000;
+
+        async function validateToken() {
+            if (!TOKEN) { window.location.href = '/'; return false; }
+            try {
+                const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+                if (r.status === 401) {
+                    localStorage.removeItem('azure_token');
+                    window.location.href = '/';
+                    return false;
+                }
+                return r.ok;
+            } catch { return false; }
+        }
+
+        async function tryRefreshToken() {
+            try {
+                const res = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: TOKEN })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.access_token && data.access_token !== TOKEN) {
+                        localStorage.setItem('azure_token', data.access_token);
+                    }
+                }
+            } catch {}
+        }
+
+        validateToken().then(ok => {
+            if (ok) {
+                setInterval(tryRefreshToken, TOKEN_CHECK_INTERVAL);
+            }
+        });
+
+        const AVATAR_COLORS = [
+            'level-1', 'level-2', 'level-3', 'level-4', 'level-5'
+        ];
+
+        function getAvatarColor(userId) {
+            let hash = 0;
+            for (let i = 0; i < userId.length; i++) {
+                hash = userId.charCodeAt(i) + ((hash << 5) - hash);
+            }
+            return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
+        }
+
+        function getInitials(name) {
+            return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || name.slice(0, 2).toUpperCase();
+        }
+
+        function timeAgo(ts) {
+            if (!ts) return 'Never';
+            const now = Date.now();
+            const diff = now - ts;
+            const mins = Math.floor(diff / 60000);
+            if (mins < 1) return 'Just now';
+            if (mins < 60) return mins + 'm ago';
+            const hrs = Math.floor(mins / 60);
+            if (hrs < 24) return hrs + 'h ago';
+            const days = Math.floor(hrs / 24);
+            if (days < 7) return days + 'd ago';
+            return new Date(ts).toLocaleDateString();
+        }
+
+        function getRiskLevel(score) {
+            if (score >= 70) return 'high';
+            if (score >= 40) return 'medium';
+            return 'low';
+        }
+
+        function getRiskLabel(score) {
+            if (score >= 70) return 'High';
+            if (score >= 40) return 'Medium';
+            return 'Low';
+        }
+
+        function escapeHtml(text) {
+            const d = document.createElement('div');
+            d.textContent = text;
+            return d.innerHTML;
+        }
+
+        async function fetchUsers() {
+            try {
+                const res = await fetch(API_BASE + '/api/users', {
+                    headers: { 'Authorization': 'Bearer ' + TOKEN }
+                });
+                if (res.status === 401) {
+                    localStorage.removeItem('azure_token');
+                    window.location.href = '/';
+                    return;
+                }
+                if (res.ok) {
+                    allUsers = await res.json();
+                } else {
+                    allUsers = [];
+                }
+            } catch (e) {
+                allUsers = [];
+            }
+            renderStats();
+            renderUsers();
+        }
+
+        function renderStats() {
+            const now = Date.now();
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const weekStart = now - 7 * 24 * 60 * 60 * 1000;
+
+            const total = allUsers.length;
+            const activeToday = allUsers.filter(u => u.last_active && u.last_active >= todayStart.getTime()).length;
+            const newThisWeek = allUsers.filter(u => u.joined_at && u.joined_at >= weekStart).length;
+            const highRisk = allUsers.filter(u => getRiskLevel(u.risk_score || 0) === 'high').length;
+
+            document.getElementById('stat-total').textContent = total;
+            document.getElementById('stat-active-today').textContent = activeToday;
+            document.getElementById('stat-new-week').textContent = newThisWeek;
+            document.getElementById('stat-high-risk').textContent = highRisk;
+        }
+
+        function renderUsers() {
+            const grid = document.getElementById('user-grid');
+            const search = document.getElementById('user-search').value.toLowerCase();
+            const riskFilter = document.getElementById('filter-risk').value;
+            const activityFilter = document.getElementById('filter-activity').value;
+            const now = Date.now();
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const weekStart = now - 7 * 24 * 60 * 60 * 1000;
+
+            let filtered = allUsers.filter(u => {
+                const nameMatch = !search || (u.name && u.name.toLowerCase().includes(search)) || (u.id && u.id.toLowerCase().includes(search));
+                const risk = getRiskLevel(u.risk_score || 0);
+                const riskMatch = !riskFilter || risk === riskFilter;
+
+                let activityMatch = true;
+                if (activityFilter === 'active') {
+                    activityMatch = u.last_active && u.last_active >= todayStart.getTime();
+                } else if (activityFilter === 'week') {
+                    activityMatch = u.last_active && u.last_active >= weekStart;
+                } else if (activityFilter === 'inactive') {
+                    activityMatch = !u.last_active || u.last_active < weekStart;
+                }
+
+                return nameMatch && riskMatch && activityMatch;
+            });
+
+            if (filtered.length === 0) {
+                grid.innerHTML = '<div class="empty-state"><div class="empty-icon">👤</div><p>No users found matching filters</p></div>';
+                return;
+            }
+
+            grid.innerHTML = filtered.map(user => {
+                const risk = getRiskLevel(user.risk_score || 0);
+                const avatarClass = getAvatarColor(user.id || '');
+                const initials = getInitials(user.name || user.id || '?');
+                const isSelected = selectedUsers.has(user.id);
+
+                return `
+                    <div class="user-card risk-${risk} ${isSelected ? 'selected' : ''}" data-user-id="${escapeHtml(user.id || '')}">
+                        <div class="user-card-header">
+                            <div class="checkbox-wrapper ${isSelected ? 'checked' : ''}" onclick="event.stopPropagation(); toggleSelect('${escapeHtml(user.id || '')}')"></div>
+                            <div class="user-avatar ${avatarClass}">${initials}</div>
+                            <div class="user-info">
+                                <div class="user-name">${escapeHtml(user.name || user.id || 'Unknown')}</div>
+                                <div class="user-id">${escapeHtml(user.id || '')}</div>
+                            </div>
+                            <span class="risk-badge ${risk}">${getRiskLabel(user.risk_score || 0)}</span>
+                        </div>
+                        <div class="user-stats">
+                            <div class="user-stat">
+                                <span class="stat-label">Messages</span>
+                                <span class="stat-value">${(user.message_count || 0).toLocaleString()}</span>
+                            </div>
+                            <div class="user-stat">
+                                <span class="stat-label">Risk Score</span>
+                                <span class="stat-value">${user.risk_score || 0}/100</span>
+                            </div>
+                        </div>
+                        <div class="risk-score-bar">
+                            <div class="risk-score-fill ${risk}" style="width: ${user.risk_score || 0}%"></div>
+                        </div>
+                        <div class="user-card-footer">
+                            <span class="last-active">Last active: ${timeAgo(user.last_active)}</span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            grid.querySelectorAll('.user-card').forEach(card => {
+                card.addEventListener('click', (e) => {
+                    if (e.target.closest('.checkbox-wrapper')) return;
+                    openUserModal(card.dataset.userId);
+                });
+            });
+        }
+
+        window.toggleSelect = function(userId) {
+            if (selectedUsers.has(userId)) {
+                selectedUsers.delete(userId);
+            } else {
+                selectedUsers.add(userId);
+            }
+            updateBulkBar();
+            renderUsers();
+        };
+
+        window.toggleSelectAll = function() {
+            const checkbox = document.getElementById('select-all-checkbox');
+            if (selectedUsers.size === allUsers.length) {
+                selectedUsers.clear();
+                checkbox.classList.remove('checked');
+            } else {
+                allUsers.forEach(u => { if (u.id) selectedUsers.add(u.id); });
+                checkbox.classList.add('checked');
+            }
+            updateBulkBar();
+            renderUsers();
+        };
+
+        function updateBulkBar() {
+            const bar = document.getElementById('bulk-actions');
+            const count = document.getElementById('selected-count');
+            if (selectedUsers.size > 0) {
+                bar.classList.add('visible');
+                count.textContent = selectedUsers.size;
+            } else {
+                bar.classList.remove('visible');
+            }
+
+            const selectAllCb = document.getElementById('select-all-checkbox');
+            if (selectedUsers.size === allUsers.length && allUsers.length > 0) {
+                selectAllCb.classList.add('checked');
+            } else {
+                selectAllCb.classList.remove('checked');
+            }
+        }
+
+        window.clearSelection = function() {
+            selectedUsers.clear();
+            updateBulkBar();
+            renderUsers();
+        };
+
+        window.bulkAction = function(action) {
+            const ids = Array.from(selectedUsers);
+            if (ids.length === 0) return;
+            if (action === 'ban') {
+                if (!confirm(`Ban ${ids.length} user(s)?`)) return;
+            }
+            alert(`${action} action on ${ids.length} user(s): ${ids.join(', ')}`);
+            clearSelection();
+        };
+
+        async function openUserModal(userId) {
+            const user = allUsers.find(u => u.id === userId);
+            if (!user) return;
+
+            const modal = document.getElementById('user-modal');
+            const risk = getRiskLevel(user.risk_score || 0);
+            const avatarClass = getAvatarColor(user.id || '');
+            const initials = getInitials(user.name || user.id || '?');
+
+            document.getElementById('modal-avatar').className = 'user-detail-avatar ' + avatarClass;
+            document.getElementById('modal-avatar').textContent = initials;
+            document.getElementById('modal-name').textContent = user.name || user.id || 'Unknown';
+            document.getElementById('modal-id').textContent = user.id || '';
+
+            const riskBadge = document.getElementById('modal-risk-badge');
+            riskBadge.className = 'risk-badge ' + risk;
+            riskBadge.textContent = getRiskLabel(user.risk_score || 0) + ' Risk';
+
+            document.getElementById('modal-profile-stats').innerHTML = `
+                <div class="profile-stat">
+                    <div class="label">Messages</div>
+                    <div class="value">${(user.message_count || 0).toLocaleString()}</div>
+                </div>
+                <div class="profile-stat">
+                    <div class="label">Risk Score</div>
+                    <div class="value">${user.risk_score || 0}/100</div>
+                </div>
+                <div class="profile-stat">
+                    <div class="label">Joined</div>
+                    <div class="value">${user.joined_at ? new Date(user.joined_at).toLocaleDateString() : 'Unknown'}</div>
+                </div>
+                <div class="profile-stat">
+                    <div class="label">Last Active</div>
+                    <div class="value">${timeAgo(user.last_active)}</div>
+                </div>
+            `;
+
+            const bp = user.behavioral_profile || {};
+            document.getElementById('modal-behavioral-profile').innerHTML = `
+                <div class="glass-card section-card" style="margin-top:0">
+                    <h3>Behavioral Profile</h3>
+                    <div class="profile-stats">
+                        <div class="profile-stat">
+                            <div class="label">Avg Msg Length</div>
+                            <div class="value">${bp.avg_message_length || 0}</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="label">Peak Hour</div>
+                            <div class="value">${bp.peak_hour !== undefined ? bp.peak_hour + ':00' : 'N/A'}</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="label">Sentiment</div>
+                            <div class="value">${bp.sentiment || 'Neutral'}</div>
+                        </div>
+                        <div class="profile-stat">
+                            <div class="label">Toxicity Flags</div>
+                            <div class="value" style="color:${(bp.toxicity_flags || 0) > 0 ? 'var(--danger)' : 'var(--success)'}">${bp.toxicity_flags || 0}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            const messages = user.recent_messages || [];
+            document.getElementById('modal-messages').innerHTML = messages.length > 0
+                ? messages.map(m => `
+                    <div class="message-item">
+                        <div class="msg-text">${escapeHtml(typeof m === 'string' ? m : m.text || m.content || JSON.stringify(m))}</div>
+                        <div class="msg-time">${typeof m === 'object' && m.timestamp ? new Date(m.timestamp).toLocaleString() : ''}</div>
+                    </div>
+                `).join('')
+                : '<div class="empty-state"><p>No message history available</p></div>';
+
+            const activity = user.activity_log || [];
+            document.getElementById('modal-activity').innerHTML = activity.length > 0
+                ? activity.map(a => {
+                    const dotClass = a.type === 'warn' ? 'action-warn' : a.type === 'ban' ? 'action-ban' : 'action-msg';
+                    return `
+                        <div class="timeline-item">
+                            <div class="timeline-dot ${dotClass}"></div>
+                            <div class="timeline-content">
+                                <div class="timeline-action">${escapeHtml(a.action || a.type || 'Unknown')}</div>
+                                <div class="timeline-detail">${escapeHtml(a.detail || a.reason || '')}</div>
+                                <div class="timeline-time">${a.timestamp ? new Date(a.timestamp).toLocaleString() : ''}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')
+                : '<div class="empty-state"><p>No activity recorded</p></div>';
+
+            const modHistory = user.moderation_history || [];
+            document.getElementById('modal-moderation-history').innerHTML = modHistory.length > 0
+                ? modHistory.map(m => `
+                    <div class="timeline-item">
+                        <div class="timeline-dot ${m.action === 'ban' ? 'action-ban' : m.action === 'warn' ? 'action-warn' : 'action-msg'}"></div>
+                        <div class="timeline-content">
+                            <div class="timeline-action">${escapeHtml(m.action || 'Unknown')}</div>
+                            <div class="timeline-detail">${escapeHtml(m.reason || m.detail || '')}</div>
+                            <div class="timeline-time">${m.timestamp ? new Date(m.timestamp).toLocaleString() : ''}</div>
+                        </div>
+                    </div>
+                `).join('')
+                : '<div class="empty-state"><p>No moderation history</p></div>';
+
+            const knowledge = user.knowledge_contributions || [];
+            document.getElementById('modal-knowledge').innerHTML = knowledge.length > 0
+                ? knowledge.map(k => `
+                    <div class="knowledge-item">
+                        <div class="k-icon">💡</div>
+                        <div class="k-content">
+                            <div class="k-title">${escapeHtml(k.title || k.topic || 'Contribution')}</div>
+                            <div class="k-detail">${escapeHtml(k.detail || k.summary || '')}</div>
+                        </div>
+                    </div>
+                `).join('')
+                : '<div class="empty-state"><p>No knowledge contributions</p></div>';
+
+            switchTab('profile');
+            modal.classList.add('active');
+        }
+
+        window.closeModal = function() {
+            document.getElementById('user-modal').classList.remove('active');
+        };
+
+        window.switchTab = function(tabName) {
+            document.querySelectorAll('.modal-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.toggle('active', c.id === 'tab-' + tabName));
+        };
+
+        document.getElementById('user-search').addEventListener('input', renderUsers);
+        document.getElementById('filter-risk').addEventListener('change', renderUsers);
+        document.getElementById('filter-activity').addEventListener('change', renderUsers);
+
+        document.getElementById('user-modal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        fetchUsers();
+    })();
+    </script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/nav-inject.js"></script>
+</body>
+</html>

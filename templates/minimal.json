@@ -1,0 +1,40 @@
+{
+  "name": "minimal",
+  "description": "Bare minimum setup for a small server.",
+  "created_at": 1782365310.7959657,
+  "roles": [
+    {
+      "name": "Admin",
+      "color": "E74C3C",
+      "permissions": [
+        "manage_guild",
+        "manage_channels",
+        "manage_roles",
+        "ban_members",
+        "kick_members"
+      ],
+      "hoist": true,
+      "mentionable": true,
+      "position": 2
+    }
+  ],
+  "categories": [
+    {
+      "name": "General",
+      "position": 0
+    }
+  ],
+  "channels": [
+    {
+      "name": "general",
+      "type": "text",
+      "category": "General"
+    },
+    {
+      "name": "General Voice",
+      "type": "voice",
+      "category": "General"
+    }
+  ],
+  "permission_overwrites": []
+}

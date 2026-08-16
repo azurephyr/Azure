@@ -1,0 +1,160 @@
+{
+  "name": "community",
+  "description": "General purpose community server with moderation and discussion areas.",
+  "created_at": 1782365310.7950034,
+  "roles": [
+    {
+      "name": "Admin",
+      "color": "E74C3C",
+      "permissions": [
+        "manage_guild",
+        "manage_channels",
+        "manage_roles",
+        "ban_members",
+        "kick_members"
+      ],
+      "hoist": true,
+      "mentionable": true,
+      "position": 5
+    },
+    {
+      "name": "Moderator",
+      "color": "3498DB",
+      "permissions": [
+        "manage_messages",
+        "kick_members",
+        "read_message_history"
+      ],
+      "hoist": true,
+      "mentionable": true,
+      "position": 4
+    },
+    {
+      "name": "VIP",
+      "color": "F1C40F",
+      "permissions": [
+        "send_messages",
+        "embed_links",
+        "attach_files"
+      ],
+      "hoist": true,
+      "mentionable": false,
+      "position": 3
+    },
+    {
+      "name": "Member",
+      "color": "2ECC71",
+      "permissions": [
+        "send_messages",
+        "read_messages",
+        "add_reactions"
+      ],
+      "hoist": false,
+      "mentionable": false,
+      "position": 1
+    }
+  ],
+  "categories": [
+    {
+      "name": "📢 Information",
+      "position": 0
+    },
+    {
+      "name": "💬 Discussion",
+      "position": 1
+    },
+    {
+      "name": "🎨 Creative",
+      "position": 2
+    },
+    {
+      "name": "🔊 Voice Lounge",
+      "position": 3
+    }
+  ],
+  "channels": [
+    {
+      "name": "welcome",
+      "type": "text",
+      "category": "📢 Information",
+      "topic": "New member welcome area"
+    },
+    {
+      "name": "rules",
+      "type": "text",
+      "category": "📢 Information",
+      "topic": "Server rules and guidelines"
+    },
+    {
+      "name": "announcements",
+      "type": "text",
+      "category": "📢 Information",
+      "topic": "Server announcements"
+    },
+    {
+      "name": "general",
+      "type": "text",
+      "category": "💬 Discussion"
+    },
+    {
+      "name": "off-topic",
+      "type": "text",
+      "category": "💬 Discussion"
+    },
+    {
+      "name": "feedback",
+      "type": "text",
+      "category": "💬 Discussion",
+      "topic": "Share your feedback and suggestions"
+    },
+    {
+      "name": "art-showcase",
+      "type": "text",
+      "category": "🎨 Creative"
+    },
+    {
+      "name": "music-share",
+      "type": "text",
+      "category": "🎨 Creative"
+    },
+    {
+      "name": "General Voice",
+      "type": "voice",
+      "category": "🔊 Voice Lounge"
+    },
+    {
+      "name": "Music Room",
+      "type": "voice",
+      "category": "🔊 Voice Lounge"
+    },
+    {
+      "name": "AFK",
+      "type": "voice",
+      "category": "🔊 Voice Lounge"
+    }
+  ],
+  "permission_overwrites": [
+    {
+      "channel": "announcements",
+      "target": "Member",
+      "target_type": "role",
+      "allow": [
+        "read_messages"
+      ],
+      "deny": [
+        "send_messages"
+      ]
+    },
+    {
+      "channel": "welcome",
+      "target": "Member",
+      "target_type": "role",
+      "allow": [
+        "read_messages"
+      ],
+      "deny": [
+        "send_messages"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,152 @@
+# Azure Discord Bot - Docker Compose Configuration
+# For local development and production deployment
+
+version: '3.8'
+
+services:
+  # Main Discord bot service
+  bot:
+    build:
+      context: .
+      target: production
+      dockerfile: Dockerfile
+    image: azure-discord-bot:latest
+    container_name: azure-bot
+    restart: unless-stopped
+    
+    # Environment variables (use .env file)
+    env_file:
+      - .env
+    
+    # Volume mounts
+    volumes:
+      # Persistent data
+      - ./data:/app/data
+      # Logs
+      - ./logs:/app/logs
+      # Models (download once, persist across containers)
+      - ./models:/app/models
+      # Configuration
+      - ./.env:/app/.env:ro
+    
+    # Ports
+    ports:
+      - "8088:8088"  # Health server
+      - "8080:8080"  # Web dashboard (FastAPI)
+    
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 8G
+        reservations:
+          cpus: '2.0'
+          memory: 4G
+    
+    # Health check (uses dedicated health server on port 8088)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8088/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # Logging
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    
+    # Network
+    networks:
+      - azure-network
+
+  # Web dashboard service (runs integrated with bot)
+  # Note: The web dashboard is started automatically by run_bot.py
+  # This service is disabled by default. To enable standalone dashboard:
+  #   1. Uncomment the 'dashboard' service below
+  #   2. Create a separate entrypoint for web-only mode
+  #   3. Ensure proper authentication is configured
+  
+  # dashboard:
+  #   build:
+  #     context: .
+  #     target: production
+  #     dockerfile: Dockerfile
+  #   image: azure-discord-bot:latest
+  #   container_name: azure-dashboard
+  #   restart: unless-stopped
+  #   
+  #   # Dashboard runs integrated with bot - no separate command needed
+  #   # Access at http://localhost:8080 (same port as health server)
+  #   
+  #   env_file:
+  #     - .env
+  #   
+  #   volumes:
+  #     - ./data:/app/data:ro  # Read-only access to bot data
+  #     - ./logs:/app/logs:ro
+  #   
+  #   ports:
+  #     - "8080:8080"  # Web dashboard
+  #   
+  #   depends_on:
+  #     - bot
+  #   
+  #   deploy:
+  #     resources:
+  #       limits:
+  #         cpus: '1.0'
+  #         memory: 1G
+  #       reservations:
+  #         cpus: '0.5'
+  #         memory: 512M
+  #   
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/api/health/"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+  #   
+  #   logging:
+  #     driver: "json-file"
+  #     options:
+  #       max-size: "5m"
+  #       max-file: "2"
+  #   
+  #   networks:
+  #     - azure-network
+
+networks:
+  azure-network:
+    driver: bridge
+
+volumes:
+  bot-data:
+    driver: local
+  bot-logs:
+    driver: local
+  bot-models:
+    driver: local
+
+# =============================================================================
+# Usage:
+# 
+# Build and start:
+#   docker-compose up -d
+# 
+# View logs:
+#   docker-compose logs -f bot
+#   docker-compose logs -f dashboard
+# 
+# Stop:
+#   docker-compose down
+# 
+# Rebuild:
+#   docker-compose up -d --build
+# 
+# Development with live reload:
+#   docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+# =============================================================================

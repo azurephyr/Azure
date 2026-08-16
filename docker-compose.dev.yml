@@ -1,0 +1,37 @@
+# Azure Discord Bot - Development Docker Compose Override
+# Use with: docker-compose -f docker-compose.yml -f docker-compose.dev.yml up
+
+version: '3.8'
+
+services:
+  bot:
+    build:
+      target: development
+    
+    # Mount source code for live reload
+    volumes:
+      - .:/app
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models
+    
+    # Enable debug mode
+    environment:
+      - AZURE_DEBUG=1
+      - PYTHONUNBUFFERED=1
+    
+    # Override command for development
+    command: python -u run_bot.py
+    
+    # Open debug port
+    ports:
+      - "8088:8088"
+      - "8080:8080"
+      - "5678:5678"  # Python debugger port
+    
+    # No resource limits in development
+    deploy:
+      resources:
+        limits:
+          cpus: '8.0'
+          memory: 16G

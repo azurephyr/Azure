@@ -1,0 +1,59 @@
+# Environment and secrets
+.env
+*.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Test & Linter caches
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Databases and SQLite runtime files
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+data/*.db
+data/*.sqlite*
+test_data_*.sqlite
+sim_*.sqlite
+
+# Model weights and checkpoints
+*.pt
+*.pth
+*.bin
+*.gguf
+*.onnx
+*.safetensors
+*.ckpt
+models/*.gguf
+models/*.bin
+checkpoints/
+
+# Logs and runtime jsonl
+*.log
+*.jsonl
+logs/
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# PyInstaller
+*.spec
