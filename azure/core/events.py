@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import inspect
 from collections import defaultdict
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any, Awaitable, Callable, DefaultDict
+from datetime import UTC, datetime
+from typing import Any
 
 Handler = Callable[["Event"], Any | Awaitable[Any]]
 
@@ -18,14 +19,14 @@ class Event:
     name: str
     payload: dict[str, Any] = field(default_factory=dict)
     source: str = "core"
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
 
 class EventBus:
     """Minimal async-capable in-process event bus."""
 
     def __init__(self) -> None:
-        self._handlers: DefaultDict[str, list[Handler]] = defaultdict(list)
+        self._handlers: defaultdict[str, list[Handler]] = defaultdict(list)
 
     def subscribe(self, event_name: str, handler: Handler) -> None:
         if handler not in self._handlers[event_name]:
