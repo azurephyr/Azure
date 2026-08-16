@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure Settings</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* ── Variables ─────────────────────────────────────── */
+        :root {
+            --bg-base: #000000;
+            --bg-dark: #0a0a0a;
+            --bg-surface: rgba(15,15,15,0.6);
+            --bg-surface-hover: rgba(25,25,25,0.8);
+            --bg-input: rgba(0,0,0,0.4);
+            --border-subtle: rgba(255,255,255,0.06);
+            --border-highlight: rgba(255,255,255,0.12);
+            --border-color: rgba(255,255,255,0.1);
+            --text-primary: #ffffff;
+            --text-secondary: #9ca3af;
+            --text-tertiary: #6b7280;
+            --text-muted: #6b7280;
+            --text-light: #e5e7eb;
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-glow: rgba(59,130,246,0.4);
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-green: #10b981;
+            --accent-red: #ef4444;
+            --danger: #ef4444;
+            --danger-glow: rgba(239,68,68,0.4);
+            --success: #10b981;
+            --success-glow: rgba(16,185,129,0.4);
+            --warning: #f59e0b;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-pill: 9999px;
+        }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: var(--bg-base);
+            color: var(--text-primary);
+            font-family: var(--font-sans);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            overflow-x: hidden;
+            background-image:
+                radial-gradient(circle at 10% 0%, rgba(59,130,246,0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 100%, rgba(139,92,246,0.08) 0%, transparent 40%);
+        }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: var(--radius-pill); }
+        ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+        /* ── Layout ───────────────────────────────────────── */
+        .settings-root {
+            display: flex;
+            min-height: 100vh;
+        }
+        .settings-sidebar {
+            width: 280px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-subtle);
+            background: linear-gradient(180deg, rgba(10,10,10,0.8) 0%, rgba(0,0,0,0.9) 100%);
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            z-index: 10;
+        }
+        .sidebar-header {
+            height: 80px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .logo-orb {
+            width: 28px; height: 28px; border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            box-shadow: 0 0 16px var(--accent-glow);
+            position: relative;
+        }
+        .logo-orb::after {
+            content: ''; position: absolute;
+            top: 12%; left: 12%; width: 30%; height: 30%;
+            background: #fff; border-radius: 50%; filter: blur(2px); opacity: 0.8;
+        }
+        .sidebar-header h1 {
+            font-size: 1.15rem; letter-spacing: 0.02em;
+            background: linear-gradient(90deg, #fff, #9ca3af);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .sidebar-nav { flex: 1; padding: 28px 16px; display: flex; flex-direction: column; gap: 8px; }
+        .sidebar-link {
+            display: flex; align-items: center; gap: 12px;
+            padding: 10px 14px; border-radius: 8px;
+            color: var(--text-muted); text-decoration: none;
+            font-size: 0.9rem; font-weight: 500;
+            transition: all 0.2s ease; cursor: pointer;
+        }
+        .sidebar-link:hover { background: rgba(255,255,255,0.04); color: var(--text-light); }
+        .sidebar-link.active {
+            background: rgba(59,130,246,0.1);
+            color: var(--accent-primary);
+            border-left: 3px solid var(--accent-primary);
+        }
+        .sidebar-link .icon { font-size: 1.1em; width: 22px; text-align: center; }
+        .sidebar-footer {
+            padding: 20px 24px;
+            border-top: 1px solid var(--border-subtle);
+        }
+        .sidebar-footer .btn { width: 100%; }
+
+        .settings-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .settings-topbar {
+            height: 80px;
+            padding: 0 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(5,5,5,0.4);
+            position: sticky;
+            top: 0;
+            z-index: 5;
+        }
+        .settings-topbar h2 { font-size: 1.5rem; font-weight: 500; }
+        .topbar-actions { display: flex; gap: 12px; }
+        .settings-scroll {
+            flex: 1;
+            overflow-y: auto;
+            padding: 40px;
+        }
+        .settings-section {
+            display: none;
+            flex-direction: column;
+            gap: 32px;
+            animation: fadeIn 0.3s ease;
+        }
+        .settings-section.active { display: flex; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Glass Cards ──────────────────────────────────── */
+        .glass-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(24px);
+            -webkit-backdrop-filter: blur(24px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+            position: relative;
+            overflow: hidden;
+        }
+        .glass-card::before {
+            content: ''; position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            opacity: 0; transition: opacity 0.3s;
+        }
+        .glass-card:hover {
+            background: var(--bg-surface-hover);
+            border-color: var(--border-highlight);
+        }
+        .glass-card:hover::before { opacity: 1; }
+        .section-title {
+            font-size: 0.75rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.05em;
+            color: var(--text-secondary); margin-bottom: 20px;
+        }
+
+        /* ── Inputs ───────────────────────────────────────── */
+        input, select, textarea {
+            width: 100%; padding: 12px 16px;
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: var(--font-sans); font-size: 0.9rem;
+            outline: none; transition: all 0.2s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 2px var(--accent-glow);
+        }
+        input::placeholder, textarea::placeholder { color: var(--text-tertiary); }
+        textarea { resize: vertical; min-height: 80px; font-family: var(--font-sans); }
+
+        .input-group { display: flex; flex-direction: column; gap: 6px; }
+        .input-label {
+            font-size: 0.8rem; font-weight: 600;
+            color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .input-hint { font-size: 0.78rem; color: var(--text-tertiary); }
+
+        /* ── Buttons ──────────────────────────────────────── */
+        .btn {
+            padding: 12px 24px; border: none; border-radius: var(--radius-md);
+            font-family: var(--font-sans); font-weight: 600; font-size: 0.9rem;
+            cursor: pointer; transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+            display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            position: relative; overflow: hidden;
+        }
+        .btn.sm { padding: 8px 14px; font-size: 0.82rem; border-radius: 8px; }
+        .btn.xs { padding: 5px 10px; font-size: 0.78rem; border-radius: 6px; }
+        .btn.primary {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+            color: #fff; box-shadow: 0 4px 15px var(--accent-glow);
+        }
+        .btn.primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px var(--accent-glow); filter: brightness(1.1); }
+        .btn.primary:active { transform: translateY(0); }
+        .btn.secondary {
+            background: rgba(255,255,255,0.05); color: var(--text-primary);
+            border: 1px solid var(--border-subtle);
+        }
+        .btn.secondary:hover { background: rgba(255,255,255,0.1); border-color: var(--border-highlight); }
+        .btn.success {
+            background: rgba(16,185,129,0.15); color: var(--success);
+            border: 1px solid rgba(16,185,129,0.3);
+        }
+        .btn.success:hover { background: var(--success); color: #fff; box-shadow: 0 8px 25px var(--success-glow); }
+        .btn.danger {
+            background: rgba(239,68,68,0.1); color: var(--danger);
+            border: 1px solid rgba(239,68,68,0.3);
+        }
+        .btn.danger:hover { background: var(--danger); color: #fff; box-shadow: 0 8px 25px var(--danger-glow); }
+        .btn.ghost {
+            background: transparent; color: var(--text-secondary);
+            border: 1px solid transparent;
+        }
+        .btn.ghost:hover { background: rgba(255,255,255,0.04); color: var(--text-light); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none !important; }
+        .btn .spinner {
+            width: 14px; height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: #fff; border-radius: 50%;
+            animation: spin 0.6s linear infinite; display: none;
+        }
+        .btn.loading .spinner { display: inline-block; }
+        .btn.loading .btn-label { opacity: 0.6; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Provider Cards Grid ──────────────────────────── */
+        .provider-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 20px;
+        }
+        .provider-card {
+            background: var(--bg-surface);
+            backdrop-filter: blur(24px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-lg);
+            padding: 0;
+            transition: all 0.3s;
+            overflow: hidden;
+        }
+        .provider-card:hover {
+            border-color: var(--border-highlight);
+            transform: translateY(-2px);
+            box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+        }
+        .provider-card-header {
+            padding: 20px 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .provider-identity { display: flex; align-items: center; gap: 14px; }
+        .provider-icon { font-size: 1.8rem; }
+        .provider-name { font-weight: 600; font-size: 1rem; }
+        .provider-status {
+            display: flex; align-items: center; gap: 6px;
+            font-size: 0.78rem; font-weight: 600;
+            padding: 4px 12px; border-radius: var(--radius-pill);
+        }
+        .provider-status.healthy {
+            background: rgba(16,185,129,0.12); color: var(--success);
+            border: 1px solid rgba(16,185,129,0.25);
+        }
+        .provider-status.unhealthy {
+            background: rgba(239,68,68,0.12); color: var(--danger);
+            border: 1px solid rgba(239,68,68,0.25);
+        }
+        .provider-status.no-key {
+            background: rgba(107,114,128,0.12); color: var(--text-tertiary);
+            border: 1px solid rgba(107,114,128,0.25);
+        }
+        .provider-dot {
+            width: 7px; height: 7px; border-radius: 50%;
+        }
+        .provider-dot.green { background: var(--success); box-shadow: 0 0 8px var(--success-glow); }
+        .provider-dot.red { background: var(--danger); box-shadow: 0 0 8px var(--danger-glow); }
+        .provider-dot.gray { background: var(--text-tertiary); }
+        .provider-card-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+        .provider-field { display: flex; flex-direction: column; gap: 5px; }
+        .provider-field label {
+            font-size: 0.75rem; font-weight: 600; color: var(--text-secondary);
+            text-transform: uppercase; letter-spacing: 0.04em;
+        }
+        .provider-card-footer {
+            padding: 14px 24px;
+            border-top: 1px solid var(--border-subtle);
+            display: flex; gap: 10px; justify-content: flex-end;
+        }
+        .provider-card.is-active {
+            border-color: rgba(59,130,246,0.4);
+            box-shadow: 0 0 24px rgba(59,130,246,0.08);
+        }
+        .provider-card.is-active .provider-card-header {
+            background: rgba(59,130,246,0.05);
+        }
+        .active-badge {
+            font-size: 0.7rem; font-weight: 700;
+            text-transform: uppercase; letter-spacing: 0.06em;
+            padding: 3px 10px; border-radius: var(--radius-pill);
+            background: rgba(59,130,246,0.15); color: var(--accent-primary);
+            border: 1px solid rgba(59,130,246,0.3);
+        }
+
+        /* ── Fallback Chain ───────────────────────────────── */
+        .chain-container {
+            display: flex; align-items: center; gap: 0;
+            padding: 16px 24px;
+            overflow-x: auto;
+        }
+        .chain-item {
+            display: flex; align-items: center; gap: 0;
+            flex-shrink: 0;
+        }
+        .chain-node {
+            display: flex; align-items: center; gap: 10px;
+            padding: 12px 20px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            cursor: grab;
+            transition: all 0.2s;
+            user-select: none;
+            min-width: 140px;
+        }
+        .chain-node:hover { border-color: var(--border-highlight); background: var(--bg-surface-hover); }
+        .chain-node.dragging { opacity: 0.5; transform: scale(0.95); }
+        .chain-node.drag-over { border-color: var(--accent-primary); box-shadow: 0 0 12px var(--accent-glow); }
+        .chain-node.is-primary {
+            border-color: rgba(59,130,246,0.4);
+            background: rgba(59,130,246,0.06);
+        }
+        .chain-grip {
+            color: var(--text-tertiary); font-size: 1rem; cursor: grab;
+            margin-right: 6px;
+        }
+        .chain-label { font-weight: 600; font-size: 0.88rem; }
+        .chain-arrow {
+            display: flex; align-items: center; justify-content: center;
+            width: 40px; flex-shrink: 0;
+            color: var(--text-tertiary); font-size: 1.2rem;
+        }
+        .chain-health-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            margin-left: auto; flex-shrink: 0;
+        }
+
+        /* ── Toggle Switch ────────────────────────────────── */
+        .toggle-row {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .toggle-row:last-child { border-bottom: none; }
+        .toggle-info { display: flex; flex-direction: column; gap: 2px; }
+        .toggle-label { font-weight: 500; font-size: 0.9rem; }
+        .toggle-desc { font-size: 0.8rem; color: var(--text-tertiary); }
+        .toggle-switch {
+            position: relative; width: 44px; height: 24px;
+            cursor: pointer; flex-shrink: 0;
+        }
+        .toggle-switch input { display: none; }
+        .toggle-slider {
+            position: absolute; inset: 0;
+            background: rgba(255,255,255,0.1); border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .toggle-slider::before {
+            content: ''; position: absolute;
+            top: 3px; left: 3px; width: 18px; height: 18px;
+            background: #fff; border-radius: 50%;
+            transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background: var(--accent-primary);
+            box-shadow: 0 0 12px var(--accent-glow);
+        }
+        .toggle-switch input:checked + .toggle-slider::before {
+            transform: translateX(20px);
+        }
+
+        /* ── Severity Slider ──────────────────────────────── */
+        .slider-row {
+            display: flex; align-items: center; gap: 16px;
+            padding: 14px 0;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .slider-row:last-child { border-bottom: none; }
+        .slider-info { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+        .slider-label { font-weight: 500; font-size: 0.9rem; }
+        .slider-desc { font-size: 0.8rem; color: var(--text-tertiary); }
+        .slider-track {
+            flex: 1; max-width: 200px;
+            -webkit-appearance: none; appearance: none;
+            height: 6px; border-radius: 3px;
+            background: rgba(255,255,255,0.1);
+            outline: none;
+        }
+        .slider-track::-webkit-slider-thumb {
+            -webkit-appearance: none; appearance: none;
+            width: 18px; height: 18px; border-radius: 50%;
+            background: var(--accent-primary);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+        .slider-value {
+            font-family: var(--font-mono); font-size: 0.85rem;
+            color: var(--accent-primary); min-width: 40px; text-align: right;
+        }
+
+        /* ── Env Table ────────────────────────────────────── */
+        .env-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        .env-table th, .env-table td {
+            padding: 12px 16px; text-align: left;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .env-table th {
+            color: var(--text-tertiary); font-weight: 600;
+            font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em;
+            background: rgba(0,0,0,0.2); position: sticky; top: 0;
+        }
+        .env-table th:first-child { border-top-left-radius: var(--radius-md); }
+        .env-table th:last-child { border-top-right-radius: var(--radius-md); }
+        .env-table tr:hover td { background: rgba(255,255,255,0.02); }
+        .env-key {
+            font-family: var(--font-mono); font-size: 0.85rem;
+            color: var(--accent-blue);
+        }
+        .env-value {
+            font-family: var(--font-mono); font-size: 0.85rem;
+            color: var(--text-light);
+        }
+        .env-value.masked { color: var(--text-tertiary); }
+        .env-badge {
+            font-size: 0.7rem; font-weight: 600; padding: 2px 8px;
+            border-radius: var(--radius-pill);
+        }
+        .env-badge.sensitive {
+            background: rgba(239,68,68,0.1); color: var(--danger);
+            border: 1px solid rgba(239,68,68,0.2);
+        }
+        .env-badge.normal {
+            background: rgba(255,255,255,0.05); color: var(--text-tertiary);
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        /* ── Notification Toast ───────────────────────────── */
+        .toast-container {
+            position: fixed; bottom: 24px; right: 24px;
+            display: flex; flex-direction: column; gap: 8px; z-index: 100;
+        }
+        .toast {
+            padding: 14px 20px;
+            background: rgba(15,15,15,0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-subtle);
+            border-radius: var(--radius-md);
+            font-size: 0.88rem; color: var(--text-light);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+            animation: slideUp 0.3s ease;
+            display: flex; align-items: center; gap: 10px;
+            max-width: 400px;
+        }
+        .toast.success { border-color: rgba(16,185,129,0.3); }
+        .toast.success::before { content: '✓'; color: var(--success); font-weight: 700; }
+        .toast.error { border-color: rgba(239,68,68,0.3); }
+        .toast.error::before { content: '✗'; color: var(--danger); font-weight: 700; }
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(16px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* ── Responsive ───────────────────────────────────── */
+        @media (max-width: 1100px) {
+            .settings-sidebar { width: 220px; }
+            .provider-grid { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 768px) {
+            .settings-sidebar {
+                position: fixed;
+                left: -300px;
+                top: 0;
+                width: 280px;
+                height: 100vh;
+                z-index: 200;
+                transition: left 0.3s cubic-bezier(0.4,0,0.2,1);
+            }
+            .settings-sidebar.mobile-open { left: 0; }
+            .settings-topbar { padding: 0 16px 0 60px; height: 60px; }
+            .settings-topbar h2 { font-size: 1.1rem; }
+            .settings-scroll { padding: 20px 16px; }
+            .glass-card { padding: 20px; }
+            .section-title { font-size: 0.7rem; }
+            .provider-card-header { padding: 16px; }
+            .provider-card-body { padding: 16px; }
+            .provider-card-footer { padding: 12px 16px; flex-wrap: wrap; }
+            .chain-container { padding: 12px 16px; flex-wrap: wrap; justify-content: center; }
+            .chain-node { min-width: 120px; padding: 10px 14px; }
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+            .data-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .data-table thead { display: none; }
+            .data-table tbody tr { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
+            .data-table tbody td { padding: 4px 0; border-bottom: none; display: flex; justify-content: space-between; align-items: center; }
+            .data-table tbody td::before { content: attr(data-label); font-weight: 600; font-size: 0.7rem; text-transform: uppercase; color: var(--text-tertiary); }
+            .modal { max-width: 95vw; }
+            .modal-body { padding: 16px; }
+        }
+        @media (max-width: 480px) {
+            .settings-topbar h2 { font-size: 0.95rem; }
+            .topbar-actions { gap: 8px; }
+            .btn.sm { padding: 8px 12px; font-size: 0.78rem; }
+            .glass-card { padding: 16px; }
+            .input-group { gap: 4px; }
+            .input-label { font-size: 0.7rem; }
+            .toggle-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .slider-row { flex-direction: column; align-items: flex-start; gap: 10px; }
+            .slider-track { max-width: 100%; width: 100%; }
+        }
+
+        .settings-mobile-toggle {
+            display: none;
+            position: fixed;
+            top: 14px;
+            left: 14px;
+            z-index: 210;
+            width: 44px;
+            height: 44px;
+            border-radius: 10px;
+            background: var(--bg-surface);
+            border: 1px solid var(--border-subtle);
+            backdrop-filter: blur(12px);
+            cursor: pointer;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            touch-action: manipulation;
+        }
+        @media (max-width: 768px) {
+            .settings-mobile-toggle { display: flex; }
+        }
+        .settings-sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 190;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .settings-sidebar-overlay.active { display: block; }
+
+        /* ── Misc ─────────────────────────────────────────── */
+        .empty-state {
+            text-align: center; padding: 40px 20px;
+            color: var(--text-tertiary); font-style: italic;
+        }
+        .badge-active {
+            padding: 3px 10px; border-radius: var(--radius-pill);
+            font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+            background: rgba(59,130,246,0.15); color: var(--accent-primary);
+        }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+        @media (max-width: 768px) {
+            .grid-2, .grid-3 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="settings-root">
+        <!-- ── Sidebar ─────────────────────────────────── -->
+        <aside class="settings-sidebar">
+            <div class="sidebar-header">
+                <div class="logo-orb"></div>
+                <h1>Azure Settings</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a class="sidebar-link active" data-section="providers">
+                    <span class="icon">🔌</span> Providers
+                </a>
+                <a class="sidebar-link" data-section="fallback">
+                    <span class="icon">🔗</span> Fallback Chain
+                </a>
+                <a class="sidebar-link" data-section="moderation">
+                    <span class="icon">🛡️</span> Moderation
+                </a>
+                <a class="sidebar-link" data-section="bot">
+                    <span class="icon">🤖</span> Bot Settings
+                </a>
+                <a class="sidebar-link" data-section="env">
+                    <span class="icon">📄</span> Environment
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/" class="btn secondary sm">← Back to Dashboard</a>
+            </div>
+        </aside>
+
+        <!-- ── Main ────────────────────────────────────── -->
+        <div class="settings-main">
+            <header class="settings-topbar">
+                <h2 id="section-title">Providers</h2>
+                <div class="topbar-actions">
+                    <button id="btn-reset" class="btn secondary sm">⟳ Reset</button>
+                    <button id="btn-save" class="btn primary sm">💾 Save All</button>
+                </div>
+            </header>
+
+            <div class="settings-scroll">
+
+                <!-- ═══════════════════════════════════════════ PROVIDERS -->
+                <div id="sec-providers" class="settings-section active">
+                    <div class="provider-grid" id="provider-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ FALLBACK CHAIN -->
+                <div id="sec-fallback" class="settings-section">
+                    <div class="glass-card">
+                        <div class="section-title">Failover Order</div>
+                        <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:20px;">
+                            Drag to reorder. The first provider is the primary. When it fails, Azure tries the next in the chain.
+                        </p>
+                        <div class="chain-container" id="chain-container">
+                            <!-- Populated by JS -->
+                        </div>
+                    </div>
+                    <div class="glass-card" id="chain-health-card">
+                        <div class="section-title">Provider Health Overview</div>
+                        <div id="chain-health-list"></div>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ MODERATION -->
+                <div id="sec-moderation" class="settings-section">
+                    <div class="glass-card">
+                        <div class="section-title">Moderation Toggles</div>
+                        <div id="mod-toggles"></div>
+                    </div>
+                    <div class="glass-card">
+                        <div class="section-title">Severity Thresholds</div>
+                        <div id="mod-sliders"></div>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ BOT SETTINGS -->
+                <div id="sec-bot" class="settings-section">
+                    <div class="glass-card">
+                        <div class="section-title">System Persona</div>
+                        <div class="input-group">
+                            <label class="input-label">System Prompt</label>
+                            <textarea id="bot-system-prompt" rows="5" placeholder="You are Azure, a helpful AI assistant..."></textarea>
+                            <span class="input-hint">The base personality injected into every conversation.</span>
+                        </div>
+                    </div>
+                    <div class="glass-card">
+                        <div class="section-title">Generation Parameters</div>
+                        <div class="grid-2">
+                            <div class="input-group">
+                                <label class="input-label">Default Max Tokens</label>
+                                <input type="number" id="bot-max-tokens" min="1" max="128000" value="150">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Default Temperature</label>
+                                <input type="number" id="bot-temperature" min="0" max="2" step="0.1" value="0.7">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-card">
+                        <div class="section-title">Rate Limiting</div>
+                        <div class="grid-3">
+                            <div class="input-group">
+                                <label class="input-label">Command Cooldown (s)</label>
+                                <input type="number" id="bot-cooldown" min="0" step="0.5" value="5">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Rate Limit Window (s)</label>
+                                <input type="number" id="bot-rl-window" min="1" step="1" value="60">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Max Requests / Window</label>
+                                <input type="number" id="bot-rl-max" min="1" step="1" value="10">
+                            </div>
+                        </div>
+                        <div class="grid-3" style="margin-top:16px">
+                            <div class="input-group">
+                                <label class="input-label">RL Cooldown Duration (s)</label>
+                                <input type="number" id="bot-rl-cooldown" min="1" step="1" value="30">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Response Cache Size</label>
+                                <input type="number" id="bot-cache-size" min="0" step="10" value="100">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Cache TTL (s)</label>
+                                <input type="number" id="bot-cache-ttl" min="0" step="60" value="3600">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="glass-card">
+                        <div class="section-title">Memory & Retries</div>
+                        <div class="grid-3">
+                            <div class="input-group">
+                                <label class="input-label">Context Memory Size</label>
+                                <input type="number" id="bot-ctx-size" min="0" step="1" value="10">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Max Tracked Users</label>
+                                <input type="number" id="bot-ctx-max-users" min="1" step="10" value="100">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Max Retries</label>
+                                <input type="number" id="bot-retries" min="0" step="1" value="3">
+                            </div>
+                        </div>
+                        <div class="grid-2" style="margin-top:16px">
+                            <div class="input-group">
+                                <label class="input-label">Retry Delay Base (s)</label>
+                                <input type="number" id="bot-retry-base" min="0" step="0.5" value="1">
+                            </div>
+                            <div class="input-group">
+                                <label class="input-label">Retry Delay Max (s)</label>
+                                <input type="number" id="bot-retry-max" min="0" step="1" value="10">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ═══════════════════════════════════════════ ENVIRONMENT -->
+                <div id="sec-env" class="settings-section">
+                    <div class="glass-card">
+                        <div class="section-title">Environment Variables (.env)</div>
+                        <p style="font-size:0.88rem; color:var(--text-secondary); margin-bottom:16px;">
+                            Read-only view of your <code style="color:var(--accent-blue)">.env</code> file. Sensitive values are masked.
+                        </p>
+                        <div style="overflow-x:auto;">
+                            <table class="env-table" id="env-table">
+                                <thead>
+                                    <tr>
+                                        <th>Variable</th>
+                                        <th>Value</th>
+                                        <th>Type</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="env-tbody">
+                                    <!-- Populated by JS -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ── State ──────────────────────────────────────
+        let authToken = localStorage.getItem('azure_token');
+        let settings = null;
+        let dirty = false;
+        const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000;
+
+        // ── DOM Helpers ────────────────────────────────
+        const $ = (s, p) => (p || document).querySelector(s);
+        const $$ = (s, p) => [...(p || document).querySelectorAll(s)];
+        const esc = (v) => {
+            if (v == null) return '';
+            return String(v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        };
+
+        // ── Auth Gate ──────────────────────────────────
+        if (!authToken) {
+            window.location.href = '/';
+            return;
+        }
+
+        async function validateToken() {
+            if (!authToken) { window.location.href = '/'; return false; }
+            try {
+                const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + authToken } });
+                if (r.status === 401) {
+                    authToken = null;
+                    localStorage.removeItem('azure_token');
+                    window.location.href = '/';
+                    return false;
+                }
+                return r.ok;
+            } catch { return false; }
+        }
+
+        async function tryRefreshToken() {
+            if (!authToken) return;
+            try {
+                const res = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: authToken })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.access_token && data.access_token !== authToken) {
+                        authToken = data.access_token;
+                        localStorage.setItem('azure_token', authToken);
+                    }
+                }
+            } catch {}
+        }
+
+        validateToken().then(ok => {
+            if (ok) {
+                loadSettings();
+                setInterval(tryRefreshToken, TOKEN_CHECK_INTERVAL);
+            }
+        });
+
+        // ── Toast ──────────────────────────────────────
+        function toast(msg, type) {
+            const c = $('#toast-container');
+            const t = document.createElement('div');
+            t.className = 'toast ' + (type || 'success');
+            t.textContent = msg;
+            c.appendChild(t);
+            setTimeout(() => { t.style.opacity = '0'; setTimeout(() => t.remove(), 300); }, 3500);
+        }
+
+        // ── API ────────────────────────────────────────
+        async function apiGet(url) {
+            const r = await fetch(url, { headers: { 'Authorization': 'Bearer ' + authToken } });
+            if (r.status === 401) { window.location.href = '/'; throw new Error('Unauthorized'); }
+            if (!r.ok) throw new Error('Request failed');
+            return r.json();
+        }
+        async function apiPost(url, data) {
+            const r = await fetch(url, {
+                method: 'POST',
+                headers: { 'Authorization': 'Bearer ' + authToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify(data || {})
+            });
+            if (r.status === 401) { window.location.href = '/'; throw new Error('Unauthorized'); }
+            if (!r.ok) {
+                let detail = 'Request failed';
+                try { const b = await r.json(); if (b.detail) detail = b.detail; } catch(_){}
+                throw new Error(detail);
+            }
+            return r.json();
+        }
+
+        // ── Navigation ─────────────────────────────────
+        const sectionTitles = {
+            providers: 'Providers',
+            fallback: 'Fallback Chain',
+            moderation: 'Moderation Settings',
+            bot: 'Bot Settings',
+            env: 'Environment Viewer'
+        };
+
+        $$('.sidebar-link').forEach(link => {
+            link.addEventListener('click', () => {
+                $$('.sidebar-link').forEach(l => l.classList.remove('active'));
+                link.classList.add('active');
+                const sec = link.dataset.section;
+                $$('.settings-section').forEach(s => s.classList.remove('active'));
+                const el = $('#sec-' + sec);
+                if (el) el.classList.add('active');
+                $('#section-title').textContent = sectionTitles[sec] || sec;
+            });
+        });
+
+        // ── Load Settings ──────────────────────────────
+        async function loadSettings() {
+            try {
+                settings = await apiGet('/api/settings/all');
+                renderProviders();
+                renderFallbackChain();
+                renderModeration();
+                renderBotSettings();
+                renderEnv();
+                dirty = false;
+            } catch (e) {
+                toast('Failed to load settings: ' + e.message, 'error');
+            }
+        }
+
+        // ── Provider Cards ─────────────────────────────
+        function renderProviders() {
+            const grid = $('#provider-grid');
+            if (!grid || !settings) return;
+            const providers = settings.providers;
+            const health = settings.provider_health || {};
+            const current = settings.current_provider;
+
+            grid.innerHTML = Object.entries(providers).map(([pid, p]) => {
+                const h = health[pid] || {};
+                const isHealthy = h.healthy;
+                const hasKey = p.has_key;
+                const isActive = pid === current;
+                const statusClass = !hasKey ? 'no-key' : (isHealthy ? 'healthy' : 'unhealthy');
+                const statusText = !hasKey ? 'No Key' : (isHealthy ? 'Healthy' : 'Degraded');
+                const dotClass = !hasKey ? 'gray' : (isHealthy ? 'green' : 'red');
+
+                return `
+                <div class="provider-card ${isActive ? 'is-active' : ''}" data-provider="${esc(pid)}">
+                    <div class="provider-card-header">
+                        <div class="provider-identity">
+                            <span class="provider-icon">${p.icon}</span>
+                            <span class="provider-name">${esc(p.name)}</span>
+                            ${isActive ? '<span class="active-badge">Primary</span>' : ''}
+                        </div>
+                        <div class="provider-status ${statusClass}">
+                            <span class="provider-dot ${dotClass}"></span>
+                            ${statusText}
+                        </div>
+                    </div>
+                    <div class="provider-card-body">
+                        <div class="provider-field">
+                            <label>API Key</label>
+                            <input type="password" class="prov-key" data-pid="${esc(pid)}"
+                                   placeholder="${esc(p.key_masked)}" autocomplete="off">
+                            <span class="input-hint">Env: ${esc(p.key_envs.join(' > '))}</span>
+                        </div>
+                        <div class="provider-field">
+                            <label>Model</label>
+                            <input type="text" class="prov-model" data-pid="${esc(pid)}"
+                                   value="${esc(p.model)}" placeholder="${esc(p.default_model)}">
+                            <span class="input-hint">Env: ${esc(p.model_env)}</span>
+                        </div>
+                        ${p.fallback_model !== undefined ? `
+                        <div class="provider-field">
+                            <label>Fallback Model</label>
+                            <input type="text" class="prov-fallback" data-pid="${esc(pid)}"
+                                   value="${esc(p.fallback_model || '')}" placeholder="Optional">
+                        </div>` : ''}
+                    </div>
+                    <div class="provider-card-footer">
+                        <button class="btn sm secondary test-btn" data-pid="${esc(pid)}">
+                            <span class="spinner"></span>
+                            <span class="btn-label">Test Connection</span>
+                        </button>
+                        <button class="btn sm primary save-prov-btn" data-pid="${esc(pid)}">
+                            Save Provider
+                        </button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            // Bind test buttons
+            $$('.test-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const pid = btn.dataset.pid;
+                    btn.classList.add('loading');
+                    btn.disabled = true;
+                    try {
+                        const result = await apiPost('/api/settings/provider/' + pid + '/test');
+                        if (result.success) {
+                            toast(`${pid}: Connected (${result.latency_ms}ms, ${result.model})`, 'success');
+                        } else {
+                            toast(`${pid}: ${result.error || 'Connection failed'}`, 'error');
+                        }
+                    } catch (e) {
+                        toast(`Test failed: ${e.message}`, 'error');
+                    } finally {
+                        btn.classList.remove('loading');
+                        btn.disabled = false;
+                    }
+                });
+            });
+
+            // Bind save buttons
+            $$('.save-prov-btn').forEach(btn => {
+                btn.addEventListener('click', async () => {
+                    const pid = btn.dataset.pid;
+                    const card = btn.closest('.provider-card');
+                    const keyInput = card.querySelector('.prov-key');
+                    const modelInput = card.querySelector('.prov-model');
+                    const fallbackInput = card.querySelector('.prov-fallback');
+                    const payload = {};
+                    if (keyInput.value.trim()) payload.api_key = keyInput.value.trim();
+                    if (modelInput.value.trim()) payload.model = modelInput.value.trim();
+                    if (fallbackInput && fallbackInput.value.trim()) payload.fallback_model = fallbackInput.value.trim();
+                    if (Object.keys(payload).length === 0) {
+                        toast('No changes to save', 'error');
+                        return;
+                    }
+                    btn.classList.add('loading');
+                    btn.disabled = true;
+                    try {
+                        await apiPost('/api/settings/provider/' + pid, payload);
+                        toast(`${pid} settings saved`, 'success');
+                        keyInput.value = '';
+                        dirty = true;
+                        await loadSettings();
+                    } catch (e) {
+                        toast(`Save failed: ${e.message}`, 'error');
+                    } finally {
+                        btn.classList.remove('loading');
+                        btn.disabled = false;
+                    }
+                });
+            });
+        }
+
+        // ── Fallback Chain ─────────────────────────────
+        let dragSrc = null;
+        function renderFallbackChain() {
+            const container = $('#chain-container');
+            const healthList = $('#chain-health-list');
+            if (!container || !settings) return;
+
+            const chain = settings.fallback_chain;
+            const health = settings.provider_health || {};
+            const providerNames = {};
+            Object.entries(settings.providers).forEach(([pid, p]) => {
+                providerNames[pid] = p.name;
+            });
+
+            container.innerHTML = chain.map((pid, i) => {
+                const h = health[pid] || {};
+                const dotClass = !h.has_key ? 'gray' : (h.healthy ? 'green' : 'red');
+                const name = providerNames[pid] || pid;
+                return `
+                <div class="chain-item">
+                    <div class="chain-node ${i === 0 ? 'is-primary' : ''}"
+                         draggable="true" data-pid="${esc(pid)}" data-idx="${i}">
+                        <span class="chain-grip">⠿</span>
+                        <span class="chain-label">${esc(name)}</span>
+                        ${i === 0 ? '<span class="badge-active" style="margin-left:8px">Primary</span>' : ''}
+                        <span class="chain-health-dot ${dotClass}"></span>
+                    </div>
+                    ${i < chain.length - 1 ? '<div class="chain-arrow">→</div>' : ''}
+                </div>`;
+            }).join('');
+
+            // Drag-and-drop
+            $$('.chain-node').forEach(node => {
+                node.addEventListener('dragstart', (e) => {
+                    dragSrc = node;
+                    node.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                });
+                node.addEventListener('dragend', () => {
+                    node.classList.remove('dragging');
+                    $$('.chain-node').forEach(n => n.classList.remove('drag-over'));
+                    dragSrc = null;
+                });
+                node.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    node.classList.add('drag-over');
+                });
+                node.addEventListener('dragleave', () => {
+                    node.classList.remove('drag-over');
+                });
+                node.addEventListener('drop', async (e) => {
+                    e.preventDefault();
+                    node.classList.remove('drag-over');
+                    if (!dragSrc || dragSrc === node) return;
+                    const fromIdx = parseInt(dragSrc.dataset.idx);
+                    const toIdx = parseInt(node.dataset.idx);
+                    const chain = [...settings.fallback_chain];
+                    const [moved] = chain.splice(fromIdx, 1);
+                    chain.splice(toIdx, 0, moved);
+                    try {
+                        await apiPost('/api/settings/fallback-chain', { chain: chain });
+                        settings.fallback_chain = chain;
+                        toast('Fallback chain updated', 'success');
+                        renderFallbackChain();
+                    } catch (err) {
+                        toast('Update failed: ' + err.message, 'error');
+                    }
+                });
+            });
+
+            // Health overview
+            if (healthList) {
+                healthList.innerHTML = chain.map(pid => {
+                    const h = health[pid] || {};
+                    const name = providerNames[pid] || pid;
+                    const score = typeof h.score === 'number' ? (h.score * 100).toFixed(0) : '?';
+                    const dotClass = !h.has_key ? 'gray' : (h.healthy ? 'green' : 'red');
+                    return `
+                    <div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid var(--border-subtle)">
+                        <span class="provider-dot ${dotClass}"></span>
+                        <span style="font-weight:500;min-width:100px">${esc(name)}</span>
+                        <span style="font-size:0.82rem;color:var(--text-tertiary)">
+                            Score: <span style="color:var(--accent-primary);font-family:var(--font-mono)">${score}%</span>
+                        </span>
+                        <span style="font-size:0.82rem;color:var(--text-tertiary)">
+                            Failures: <span style="color:${(h.consecutive_failures||0) > 0 ? 'var(--danger)' : 'var(--success)'};font-family:var(--font-mono)">${h.consecutive_failures || 0}</span>
+                        </span>
+                    </div>`;
+                }).join('');
+            }
+        }
+
+        // ── Moderation ─────────────────────────────────
+        function renderModeration() {
+            const toggles = $('#mod-toggles');
+            const sliders = $('#mod-sliders');
+            if (!toggles || !settings) return;
+            const mod = settings.moderation;
+
+            toggles.innerHTML = `
+            <div class="toggle-row">
+                <div class="toggle-info">
+                    <span class="toggle-label">Cognitive Mode (10-Phase Reasoning)</span>
+                    <span class="toggle-desc">Enables deep multi-step reasoning. Adds 2-5s latency per message.</span>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="mod-cognitive" ${mod.cognitive_mode ? 'checked' : ''}>
+                    <span class="toggle-slider"></span>
+                </label>
+            </div>
+            <div class="toggle-row">
+                <div class="toggle-info">
+                    <span class="toggle-label">Moderation Phase</span>
+                    <span class="toggle-desc">dry_run = no enforcement, reactive_limited = warn only, reactive_full = full enforcement.</span>
+                </div>
+                <select id="mod-phase" style="width:200px">
+                    <option value="dry_run" ${mod.phase === 'dry_run' ? 'selected' : ''}>Dry Run</option>
+                    <option value="reactive_limited" ${mod.phase === 'reactive_limited' ? 'selected' : ''}>Reactive (Limited)</option>
+                    <option value="reactive_full" ${mod.phase === 'reactive_full' ? 'selected' : ''}>Reactive (Full)</option>
+                </select>
+            </div>
+            <div class="toggle-row">
+                <div class="toggle-info">
+                    <span class="toggle-label">Confirmation Mode</span>
+                    <span class="toggle-desc">When to require admin approval before taking action.</span>
+                </div>
+                <select id="mod-confirm-mode" style="width:200px">
+                    <option value="none" ${mod.confirmation_mode === 'none' ? 'selected' : ''}>None</option>
+                    <option value="destructive" ${mod.confirmation_mode === 'destructive' ? 'selected' : ''}>Destructive Only</option>
+                    <option value="all" ${mod.confirmation_mode === 'all' ? 'selected' : ''}>All Actions</option>
+                </select>
+            </div>`;
+
+            sliders.innerHTML = `
+            <div class="slider-row">
+                <div class="slider-info">
+                    <span class="slider-label">Confirmation Threshold</span>
+                    <span class="slider-desc">Confidence above which actions auto-approve (0.0 - 1.0).</span>
+                </div>
+                <input type="range" class="slider-track" id="mod-threshold" min="0" max="1" step="0.05" value="${mod.confirmation_threshold}">
+                <span class="slider-value" id="mod-threshold-val">${mod.confirmation_threshold}</span>
+            </div>
+            <div class="slider-row">
+                <div class="slider-info">
+                    <span class="slider-label">Semantic Threshold</span>
+                    <span class="slider-desc">Confidence below which Qwen reasoning triggers (0.0 - 1.0).</span>
+                </div>
+                <input type="range" class="slider-track" id="mod-semantic" min="0" max="1" step="0.05" value="${mod.semantic_threshold}">
+                <span class="slider-value" id="mod-semantic-val">${mod.semantic_threshold}</span>
+            </div>`;
+
+            // Slider value display
+            $('#mod-threshold').addEventListener('input', (e) => {
+                $('#mod-threshold-val').textContent = e.target.value;
+            });
+            $('#mod-semantic').addEventListener('input', (e) => {
+                $('#mod-semantic-val').textContent = e.target.value;
+            });
+
+            // Auto-save moderation on change
+            const saveMod = async () => {
+                try {
+                    await apiPost('/api/settings/moderation', {
+                        phase: $('#mod-phase').value,
+                        confirmation_mode: $('#mod-confirm-mode').value,
+                        confirmation_threshold: parseFloat($('#mod-threshold').value),
+                        cognitive_mode: $('#mod-cognitive').checked ? 1 : 0,
+                        semantic_threshold: parseFloat($('#mod-semantic').value),
+                    });
+                    toast('Moderation settings saved', 'success');
+                } catch (e) {
+                    toast('Save failed: ' + e.message, 'error');
+                }
+            };
+            $('#mod-phase').addEventListener('change', saveMod);
+            $('#mod-confirm-mode').addEventListener('change', saveMod);
+            $('#mod-cognitive').addEventListener('change', saveMod);
+            $('#mod-threshold').addEventListener('change', saveMod);
+            $('#mod-semantic').addEventListener('change', saveMod);
+        }
+
+        // ── Bot Settings ───────────────────────────────
+        function renderBotSettings() {
+            if (!settings) return;
+            const b = settings.bot;
+            $('#bot-system-prompt').value = b.system_prompt || '';
+            $('#bot-max-tokens').value = b.default_max_tokens;
+            $('#bot-temperature').value = b.default_temperature;
+            $('#bot-cooldown').value = b.command_cooldown;
+            $('#bot-rl-window').value = b.rate_limit_window;
+            $('#bot-rl-max').value = b.rate_limit_max;
+            $('#bot-rl-cooldown').value = b.rate_limit_cooldown;
+            $('#bot-cache-size').value = b.response_cache_size;
+            $('#bot-cache-ttl').value = b.response_cache_ttl;
+            $('#bot-ctx-size').value = b.context_memory_size;
+            $('#bot-ctx-max-users').value = b.context_memory_max_users;
+            $('#bot-retries').value = b.max_retries;
+            $('#bot-retry-base').value = b.retry_delay_base;
+            $('#bot-retry-max').value = b.retry_delay_max;
+        }
+
+        $('#btn-save').addEventListener('click', async () => {
+            const btn = $('#btn-save');
+            btn.classList.add('loading');
+            btn.disabled = true;
+            try {
+                await apiPost('/api/settings/bot', {
+                    system_prompt: $('#bot-system-prompt').value,
+                    default_max_tokens: parseInt($('#bot-max-tokens').value),
+                    default_temperature: parseFloat($('#bot-temperature').value),
+                    command_cooldown: parseFloat($('#bot-cooldown').value),
+                    rate_limit_window: parseFloat($('#bot-rl-window').value),
+                    rate_limit_max: parseInt($('#bot-rl-max').value),
+                    rate_limit_cooldown: parseFloat($('#bot-rl-cooldown').value),
+                    response_cache_size: parseInt($('#bot-cache-size').value),
+                    response_cache_ttl: parseFloat($('#bot-cache-ttl').value),
+                    context_memory_size: parseInt($('#bot-ctx-size').value),
+                    context_memory_max_users: parseInt($('#bot-ctx-max-users').value),
+                    max_retries: parseInt($('#bot-retries').value),
+                    retry_delay_base: parseFloat($('#bot-retry-base').value),
+                    retry_delay_max: parseFloat($('#bot-retry-max').value),
+                });
+                toast('Bot settings saved', 'success');
+            } catch (e) {
+                toast('Save failed: ' + e.message, 'error');
+            } finally {
+                btn.classList.remove('loading');
+                btn.disabled = false;
+            }
+        });
+
+        $('#btn-reset').addEventListener('click', async () => {
+            if (!confirm('Reload all settings from .env? Unsaved changes will be lost.')) return;
+            try {
+                await apiPost('/api/settings/reset', {});
+                await loadSettings();
+                toast('Settings reloaded', 'success');
+            } catch (e) {
+                toast('Reset failed: ' + e.message, 'error');
+            }
+        });
+
+        // ── Env Viewer ─────────────────────────────────
+        function renderEnv() {
+            const tbody = $('#env-tbody');
+            if (!tbody || !settings) return;
+            const env = settings.env || [];
+            tbody.innerHTML = env.map(e => `
+            <tr>
+                <td><span class="env-key">${esc(e.key)}</span></td>
+                <td><span class="env-value ${e.is_sensitive ? 'masked' : ''}">${esc(e.value)}</span></td>
+                <td><span class="env-badge ${e.is_sensitive ? 'sensitive' : 'normal'}">${e.is_sensitive ? '🔒 Sensitive' : 'Public'}</span></td>
+            </tr>`).join('');
+        }
+
+        // ── Init ───────────────────────────────────────
+        loadSettings();
+    })();
+    </script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/nav-inject.js"></script>
+</body>
+</html>

@@ -1,0 +1,146 @@
+{
+  "name": "gaming",
+  "description": "Perfect for gaming communities with voice channels and roles.",
+  "created_at": 1782365310.7940218,
+  "roles": [
+    {
+      "name": "Admin",
+      "color": "FF0000",
+      "permissions": [
+        "manage_guild",
+        "manage_channels",
+        "manage_roles",
+        "ban_members",
+        "kick_members"
+      ],
+      "hoist": true,
+      "mentionable": true,
+      "position": 5
+    },
+    {
+      "name": "Moderator",
+      "color": "3498DB",
+      "permissions": [
+        "manage_messages",
+        "kick_members",
+        "ban_members"
+      ],
+      "hoist": true,
+      "mentionable": true,
+      "position": 4
+    },
+    {
+      "name": "Streamer",
+      "color": "9B59B6",
+      "permissions": [
+        "send_messages",
+        "connect",
+        "speak"
+      ],
+      "hoist": true,
+      "mentionable": false,
+      "position": 3
+    },
+    {
+      "name": "Member",
+      "color": "2ECC71",
+      "permissions": [
+        "send_messages",
+        "read_messages",
+        "connect",
+        "speak"
+      ],
+      "hoist": false,
+      "mentionable": false,
+      "position": 1
+    }
+  ],
+  "categories": [
+    {
+      "name": "📋 Info",
+      "position": 0
+    },
+    {
+      "name": "💬 General",
+      "position": 1
+    },
+    {
+      "name": "🎮 Gaming",
+      "position": 2
+    },
+    {
+      "name": "🔊 Voice",
+      "position": 3
+    }
+  ],
+  "channels": [
+    {
+      "name": "rules",
+      "type": "text",
+      "category": "📋 Info",
+      "topic": "Server rules"
+    },
+    {
+      "name": "announcements",
+      "type": "text",
+      "category": "📋 Info",
+      "topic": "Important announcements"
+    },
+    {
+      "name": "general-chat",
+      "type": "text",
+      "category": "💬 General"
+    },
+    {
+      "name": "memes",
+      "type": "text",
+      "category": "💬 General"
+    },
+    {
+      "name": "looking-for-group",
+      "type": "text",
+      "category": "🎮 Gaming",
+      "topic": "Find people to play with"
+    },
+    {
+      "name": "clips-and-highlights",
+      "type": "text",
+      "category": "🎮 Gaming"
+    },
+    {
+      "name": "General Voice",
+      "type": "voice",
+      "category": "🔊 Voice"
+    },
+    {
+      "name": "Squad 1",
+      "type": "voice",
+      "category": "🔊 Voice",
+      "user_limit": 5
+    },
+    {
+      "name": "Squad 2",
+      "type": "voice",
+      "category": "🔊 Voice",
+      "user_limit": 5
+    },
+    {
+      "name": "Streaming Room",
+      "type": "stage_voice",
+      "category": "🔊 Voice"
+    }
+  ],
+  "permission_overwrites": [
+    {
+      "channel": "announcements",
+      "target": "Member",
+      "target_type": "role",
+      "allow": [
+        "read_messages"
+      ],
+      "deny": [
+        "send_messages"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure - Log Viewer</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/index.css">
+    <style>
+        body { overflow: hidden; }
+        .logs-layout {
+            display: flex;
+            height: 100vh;
+            background-color: var(--bg-base);
+        }
+        .logs-sidebar {
+            width: 260px;
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            border-right: 1px solid var(--border-subtle);
+            background: linear-gradient(180deg, rgba(10,10,10,0.8) 0%, rgba(0,0,0,0.9) 100%);
+            z-index: 10;
+        }
+        .logs-sidebar-header {
+            height: 80px;
+            padding: 0 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            border-bottom: 1px solid var(--border-subtle);
+        }
+        .logs-sidebar-header h2 {
+            font-size: 1.25rem;
+            letter-spacing: 0.02em;
+            background: linear-gradient(90deg, #fff, #9ca3af);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .stats-section {
+            padding: 20px;
+            flex: 1;
+            overflow-y: auto;
+        }
+        .stats-section h3 {
+            font-size: 0.7rem;
+            color: var(--text-tertiary);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 12px;
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 8px;
+            margin-bottom: 4px;
+            transition: background 0.2s;
+        }
+        .stat-row:hover { background: rgba(255,255,255,0.03); }
+        .stat-row .label { font-size: 0.85rem; color: var(--text-secondary); }
+        .stat-row .count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .stat-row .count.level-info { color: var(--success); }
+        .stat-row .count.level-warn { color: var(--warning); }
+        .stat-row .count.level-error { color: var(--danger); }
+        .stat-row .count.level-debug { color: var(--text-tertiary); }
+        .stat-bar {
+            height: 3px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 2px;
+            margin: 4px 12px 12px;
+            overflow: hidden;
+        }
+        .stat-bar-fill {
+            height: 100%;
+            border-radius: 2px;
+            transition: width 0.4s ease;
+        }
+        .error-rate-card {
+            margin: 0 0 16px;
+            padding: 16px;
+            border-radius: var(--radius-md);
+            background: rgba(239, 68, 68, 0.05);
+            border: 1px solid rgba(239, 68, 68, 0.15);
+        }
+        .error-rate-card .big-num {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--danger);
+        }
+        .error-rate-card .sub {
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+            margin-top: 4px;
+        }
+
+        .logs-main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .logs-topbar {
+            height: 80px;
+            padding: 0 40px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(5, 5, 5, 0.4);
+            flex-shrink: 0;
+        }
+        .logs-topbar h2 {
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        .topbar-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .auto-refresh-indicator {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 0.8rem;
+            color: var(--text-tertiary);
+        }
+        .auto-refresh-indicator .dot {
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 6px var(--success);
+            animation: blink 2s infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        .auto-refresh-indicator.paused .dot {
+            background: var(--warning);
+            box-shadow: 0 0 6px var(--warning);
+            animation: none;
+        }
+
+        .logs-controls {
+            padding: 16px 40px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(0,0,0,0.2);
+            flex-shrink: 0;
+        }
+        .logs-controls input,
+        .logs-controls select {
+            width: auto;
+            min-width: 140px;
+            padding: 8px 14px;
+            font-size: 0.85rem;
+            border-radius: 8px;
+        }
+        .search-input {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .log-tabs {
+            display: flex;
+            gap: 0;
+            padding: 0 40px;
+            border-bottom: 1px solid var(--border-subtle);
+            background: rgba(0,0,0,0.15);
+            flex-shrink: 0;
+        }
+        .log-tab {
+            padding: 14px 24px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-tertiary);
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            user-select: none;
+        }
+        .log-tab:hover { color: var(--text-secondary); background: rgba(255,255,255,0.02); }
+        .log-tab.active {
+            color: var(--accent-primary);
+            border-bottom-color: var(--accent-primary);
+        }
+        .log-tab .tab-count {
+            margin-left: 6px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            padding: 2px 7px;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.06);
+        }
+
+        .log-body {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        .log-viewer-wrap {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .log-viewer {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 40px;
+            font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+            font-size: 0.82rem;
+            line-height: 1.65;
+        }
+        .log-line {
+            display: flex;
+            gap: 0;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.015);
+            transition: background 0.15s;
+        }
+        .log-line:hover { background: rgba(255,255,255,0.02); }
+        .log-line .ts {
+            color: var(--text-tertiary);
+            min-width: 170px;
+            flex-shrink: 0;
+        }
+        .log-line .lv {
+            min-width: 60px;
+            flex-shrink: 0;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            padding: 0 6px;
+            border-radius: 3px;
+            margin-right: 8px;
+            height: fit-content;
+            margin-top: 2px;
+        }
+        .log-line .lv.INFO { color: var(--success); background: rgba(16,185,129,0.08); }
+        .log-line .lv.WARN { color: var(--warning); background: rgba(245,158,11,0.08); }
+        .log-line .lv.ERROR { color: var(--danger); background: rgba(239,68,68,0.1); }
+        .log-line .lv.DEBUG { color: var(--text-tertiary); background: rgba(107,114,128,0.08); }
+        .log-line .mod {
+            color: var(--accent-purple);
+            min-width: 110px;
+            flex-shrink: 0;
+            font-size: 0.78rem;
+        }
+        .log-line .msg {
+            color: var(--text-light);
+            word-break: break-word;
+            flex: 1;
+        }
+        .log-line.error-line { background: rgba(239,68,68,0.03); }
+        .log-line.error-line:hover { background: rgba(239,68,68,0.06); }
+        .log-line.warn-line { background: rgba(245,158,11,0.02); }
+
+        .log-empty {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-tertiary);
+            font-style: italic;
+        }
+
+        .back-link {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+        .back-link:hover { background: rgba(255,255,255,0.05); color: var(--text-primary); }
+        .back-link svg { width: 14px; height: 14px; }
+
+        .count-badge {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            padding: 4px 10px;
+            border-radius: var(--radius-pill);
+            background: rgba(255,255,255,0.05);
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="logs-layout">
+        <!-- Stats Sidebar -->
+        <aside class="logs-sidebar glass-panel">
+            <div class="logs-sidebar-header">
+                <div class="logo-orb small"></div>
+                <h2>Azure Logs</h2>
+            </div>
+            <div class="stats-section">
+                <a href="/" class="back-link" style="margin-bottom:16px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                    Back to Dashboard
+                </a>
+
+                <div class="error-rate-card">
+                    <div class="big-num" id="stat-error-rate">0%</div>
+                    <div class="sub">Error Rate</div>
+                </div>
+
+                <h3>By Level</h3>
+                <div id="level-stats"></div>
+
+                <h3 style="margin-top:24px;">By Module</h3>
+                <div id="module-stats"></div>
+            </div>
+        </aside>
+
+        <!-- Main Area -->
+        <div class="logs-main">
+            <header class="logs-topbar glass-panel">
+                <h2>Real-Time Log Viewer</h2>
+                <div class="topbar-actions">
+                    <span class="count-badge" id="log-total-count">0 logs</span>
+                    <div class="auto-refresh-indicator" id="refresh-indicator">
+                        <span class="dot"></span>
+                        <span id="refresh-label">Auto-refresh: 5s</span>
+                    </div>
+                    <button class="btn secondary small" id="btn-pause" onclick="toggleAutoRefresh()">Pause</button>
+                    <button class="btn secondary small" onclick="exportLogs()">Export</button>
+                    <button class="btn primary small" onclick="fetchLogs()">Refresh</button>
+                </div>
+            </header>
+
+            <!-- Filter Controls -->
+            <div class="logs-controls">
+                <input type="text" class="search-input" id="filter-keyword" placeholder="Search logs..." onkeydown="if(event.key==='Enter')fetchLogs()">
+                <select id="filter-level" onchange="fetchLogs()">
+                    <option value="all">All Levels</option>
+                    <option value="INFO">INFO</option>
+                    <option value="WARN">WARN</option>
+                    <option value="ERROR">ERROR</option>
+                    <option value="DEBUG">DEBUG</option>
+                </select>
+                <select id="filter-module" onchange="fetchLogs()">
+                    <option value="all">All Modules</option>
+                </select>
+                <input type="text" id="filter-since" placeholder="Since (YYYY-MM-DD HH:MM)" style="width:200px;">
+            </div>
+
+            <!-- Category Tabs -->
+            <div class="log-tabs">
+                <div class="log-tab active" data-cat="all" onclick="setTab(this)">All Logs<span class="tab-count" id="tab-all">0</span></div>
+                <div class="log-tab" data-cat="bot" onclick="setTab(this)">Bot Logs<span class="tab-count" id="tab-bot">0</span></div>
+                <div class="log-tab" data-cat="moderation" onclick="setTab(this)">Moderation<span class="tab-count" id="tab-moderation">0</span></div>
+                <div class="log-tab" data-cat="agent" onclick="setTab(this)">LLM / Agent<span class="tab-count" id="tab-agent">0</span></div>
+                <div class="log-tab" data-cat="errors" onclick="setTab(this)">Errors Only<span class="tab-count" id="tab-errors">0</span></div>
+            </div>
+
+            <!-- Log Viewer -->
+            <div class="log-body">
+                <div class="log-viewer-wrap">
+                    <div class="log-viewer" id="log-viewer">
+                        <div class="log-empty">Loading logs...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        const TOKEN = localStorage.getItem('azure_token');
+        if (!TOKEN) { window.location.href = '/'; return; }
+
+        let autoRefresh = true;
+        let refreshTimer = null;
+        let activeCategory = 'all';
+        let allLogs = [];
+        const TOKEN_CHECK_INTERVAL = 5 * 60 * 1000;
+
+        async function validateToken() {
+            if (!TOKEN) { window.location.href = '/'; return false; }
+            try {
+                const r = await fetch('/api/auth/me', { headers: { 'Authorization': 'Bearer ' + TOKEN } });
+                if (r.status === 401) {
+                    localStorage.removeItem('azure_token');
+                    window.location.href = '/';
+                    return false;
+                }
+                return r.ok;
+            } catch { return false; }
+        }
+
+        async function tryRefreshToken() {
+            try {
+                const res = await fetch('/api/auth/refresh', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token: TOKEN })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.access_token && data.access_token !== TOKEN) {
+                        localStorage.setItem('azure_token', data.access_token);
+                    }
+                }
+            } catch {}
+        }
+
+        validateToken().then(ok => {
+            if (ok) {
+                fetchLogs();
+                startAutoRefresh();
+                setInterval(tryRefreshToken, TOKEN_CHECK_INTERVAL);
+            }
+        });
+
+        // Module filter population
+        const knownModules = ['agent', 'moderation', 'llm', 'bot', 'error', 'azure.web', 'azure.core', 'unknown'];
+        const moduleSelect = document.getElementById('filter-module');
+        knownModules.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            opt.textContent = m;
+            moduleSelect.appendChild(opt);
+        });
+
+        window.setTab = function(el) {
+            document.querySelectorAll('.log-tab').forEach(t => t.classList.remove('active'));
+            el.classList.add('active');
+            activeCategory = el.dataset.cat;
+            renderLogs();
+        };
+
+        window.toggleAutoRefresh = function() {
+            autoRefresh = !autoRefresh;
+            const btn = document.getElementById('btn-pause');
+            const ind = document.getElementById('refresh-indicator');
+            const lbl = document.getElementById('refresh-label');
+            if (autoRefresh) {
+                btn.textContent = 'Pause';
+                ind.classList.remove('paused');
+                lbl.textContent = 'Auto-refresh: 5s';
+                startAutoRefresh();
+            } else {
+                btn.textContent = 'Resume';
+                ind.classList.add('paused');
+                lbl.textContent = 'Paused';
+                clearInterval(refreshTimer);
+            }
+        };
+
+        function startAutoRefresh() {
+            clearInterval(refreshTimer);
+            refreshTimer = setInterval(fetchLogs, 5000);
+        }
+
+        window.fetchLogs = async function() {
+            const level = document.getElementById('filter-level').value;
+            const keyword = document.getElementById('filter-keyword').value.trim();
+            const module = document.getElementById('filter-module').value;
+            const since = document.getElementById('filter-since').value.trim();
+
+            const params = new URLSearchParams();
+            if (level !== 'all') params.set('level', level);
+            if (keyword) params.set('keyword', keyword);
+            if (module !== 'all') params.set('module', module);
+            if (since) params.set('since', since);
+            params.set('limit', '2000');
+
+            try {
+                const resp = await fetch('/api/logs?' + params.toString(), {
+                    headers: { 'Authorization': 'Bearer ' + TOKEN }
+                });
+                if (resp.status === 401) {
+                    localStorage.removeItem('azure_token');
+                    window.location.href = '/';
+                    return;
+                }
+                const data = await resp.json();
+                allLogs = data.logs || [];
+                renderStats(data.stats || {});
+                renderLogs();
+            } catch (e) {
+                console.error('Failed to fetch logs:', e);
+            }
+        };
+
+        function renderStats(stats) {
+            const levels = stats.levels || {};
+            const modules = stats.modules || {};
+            const errorRate = stats.error_rate || 0;
+
+            document.getElementById('stat-error-rate').textContent = errorRate + '%';
+            document.getElementById('log-total-count').textContent = (stats.total || allLogs.length) + ' logs';
+
+            const levelColors = { INFO: '#10b981', WARN: '#f59e0b', ERROR: '#ef4444', DEBUG: '#6b7280' };
+            const levelOrder = ['ERROR', 'WARN', 'INFO', 'DEBUG'];
+            let levelHtml = '';
+            let totalLv = Object.values(levels).reduce((a,b) => a+b, 0) || 1;
+            levelOrder.forEach(lv => {
+                const count = levels[lv] || 0;
+                const pct = Math.round(count / totalLv * 100);
+                const color = levelColors[lv] || '#6b7280';
+                levelHtml += `
+                    <div class="stat-row">
+                        <span class="label">${lv}</span>
+                        <span class="count level-${lv.toLowerCase()}">${count}</span>
+                    </div>
+                    <div class="stat-bar">
+                        <div class="stat-bar-fill" style="width:${pct}%;background:${color}"></div>
+                    </div>`;
+            });
+            document.getElementById('level-stats').innerHTML = levelHtml;
+
+            let moduleHtml = '';
+            const modOrder = Object.entries(modules).sort((a,b) => b[1] - a[1]);
+            modOrder.forEach(([mod, count]) => {
+                moduleHtml += `
+                    <div class="stat-row">
+                        <span class="label">${mod}</span>
+                        <span class="count" style="color:var(--accent-purple)">${count}</span>
+                    </div>`;
+            });
+            document.getElementById('module-stats').innerHTML = moduleHtml || '<div style="color:var(--text-tertiary);font-size:0.85rem;">No module data</div>';
+        }
+
+        function renderLogs() {
+            const viewer = document.getElementById('log-viewer');
+            let filtered = allLogs;
+
+            if (activeCategory !== 'all') {
+                filtered = allLogs.filter(l => l.category === activeCategory);
+            }
+
+            // Update tab counts
+            const cats = { all: 0, bot: 0, moderation: 0, agent: 0, errors: 0 };
+            allLogs.forEach(l => {
+                cats.all++;
+                if (cats[l.category] !== undefined) cats[l.category]++;
+            });
+            Object.keys(cats).forEach(k => {
+                const el = document.getElementById('tab-' + k);
+                if (el) el.textContent = cats[k];
+            });
+
+            if (filtered.length === 0) {
+                viewer.innerHTML = '<div class="log-empty">No logs found. Try adjusting your filters.</div>';
+                return;
+            }
+
+            const fragment = document.createDocumentFragment();
+            filtered.forEach(log => {
+                const div = document.createElement('div');
+                let cls = 'log-line';
+                if (log.level === 'ERROR') cls += ' error-line';
+                else if (log.level === 'WARN') cls += ' warn-line';
+                div.className = cls;
+                div.innerHTML = `<span class="ts">${esc(log.timestamp)}</span><span class="lv ${esc(log.level)}">${esc(log.level)}</span><span class="mod">${esc(log.module)}</span><span class="msg">${esc(log.message)}</span>`;
+                fragment.appendChild(div);
+            });
+
+            const wasAtBottom = viewer.scrollHeight - viewer.scrollTop - viewer.clientHeight < 50;
+            viewer.innerHTML = '';
+            viewer.appendChild(fragment);
+            if (wasAtBottom) viewer.scrollTop = viewer.scrollHeight;
+        }
+
+        function esc(s) {
+            if (!s) return '';
+            const d = document.createElement('div');
+            d.textContent = String(s);
+            return d.innerHTML;
+        }
+
+        window.exportLogs = function() {
+            let filtered = activeCategory === 'all' ? allLogs : allLogs.filter(l => l.category === activeCategory);
+            const text = filtered.map(l => `[${l.timestamp}] [${l.level}] [${l.module}] ${l.message}`).join('\n');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `azure-logs-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.txt`;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        };
+
+        // Initial load + auto-refresh
+        fetchLogs();
+        startAutoRefresh();
+    })();
+    </script>
+<script src="/static/js/websocket.js"></script>
+<script src="/static/js/nav-inject.js"></script>
+</body>
+</html>

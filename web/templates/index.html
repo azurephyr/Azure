@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure Operating Platform</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/index.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Auth View -->
+        <div id="login-view" class="view active">
+            <div class="glass-card login-box">
+                <div class="logo-area">
+                    <div class="logo-orb"></div>
+                    <h1>Azure</h1>
+                </div>
+                <h2>Platform Login</h2>
+                <input type="text" id="username" placeholder="Username">
+                <input type="password" id="password" placeholder="Password">
+                <button id="btn-login" class="btn primary">Authenticate</button>
+                <div id="login-error" class="error-msg"></div>
+            </div>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view">
+            <!-- Mobile hamburger -->
+            <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu">&#9776;</button>
+            <div class="mobile-overlay" id="mobile-overlay"></div>
+
+            <!-- Shared Sidebar -->
+            <aside class="sidebar glass-panel" id="azure-sidebar">
+                <div class="sidebar-header">
+                    <div class="sidebar-logo"></div>
+                    <h2>Azure Core</h2>
+                </div>
+                <nav id="sidebar-nav"></nav>
+                <div class="sidebar-footer">
+                    <div class="ws-status online" id="ws-indicator">Live Sync Active</div>
+                    <div class="sidebar-actions">
+                        <button id="btn-logout" class="btn secondary small">Logout</button>
+                    </div>
+                </div>
+            </aside>
+
+            <main class="main-content">
+                <!-- Topbar -->
+                <header class="topbar glass-panel">
+                    <div class="topbar-left">
+                        <h2 id="current-panel-title">Dashboard</h2>
+                    </div>
+                    <div class="topbar-right">
+                        <div class="search-trigger" id="search-trigger" onclick="AzureNav.toggleSearch()">
+                            <span>&#128269;</span>
+                            <span>Search...</span>
+                            <kbd>Ctrl+K</kbd>
+                        </div>
+                        <button id="notif-bell" onclick="AzureNav.toggleNotifications()">
+                            &#128276;
+                            <span id="notif-badge">0</span>
+                            <div id="notif-dropdown">
+                                <div class="notif-header">
+                                    <span>Notifications</span>
+                                    <button class="notif-clear" onclick="event.stopPropagation();localStorage.removeItem('azure_notifications');location.reload();">Clear all</button>
+                                </div>
+                                <div id="notif-list"></div>
+                            </div>
+                        </button>
+                        <button id="theme-toggle" onclick="AzureNav.toggleTheme()">&#9789;</button>
+                        <span id="user-role-badge" class="badge role-owner">Owner</span>
+                    </div>
+                </header>
+
+                <!-- Breadcrumbs -->
+                <div id="breadcrumb-area"></div>
+
+                <!-- Content Area -->
+                <div class="content-scroll">
+
+                    <!-- Health / Dashboard Panel -->
+                    <div id="panel-health" class="panel active">
+                        <div class="grid-cards">
+                            <div class="glass-card stat-card">
+                                <h3>Messages Processed</h3>
+                                <div class="stat-value" id="stat-msgs">0</div>
+                                <div class="stat-trend positive">+0% this hour</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Cache Hit Rate</h3>
+                                <div class="stat-value" id="stat-cache">0.0%</div>
+                                <div class="stat-trend positive">Optimized</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Active Servers</h3>
+                                <div class="stat-value" id="stat-servers">0</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>System Memory</h3>
+                                <div class="stat-value" id="stat-mem">0 MB</div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card section-card">
+                            <h3>Live Discord Stream</h3>
+                            <div class="terminal-view" id="live-chat-stream">
+                                <div class="log-entry system">Connected to Azure Core Message Stream...</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Panel -->
+                    <div id="panel-analytics" class="panel">
+                        <div class="grid-cards">
+                            <div class="glass-card stat-card">
+                                <h3>Total Messages (24h)</h3>
+                                <div class="stat-value" id="analytics-msgs">--</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Avg Response Time</h3>
+                                <div class="stat-value" id="analytics-latency">--</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Tokens Used</h3>
+                                <div class="stat-value" id="analytics-tokens">--</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Cache Hits</h3>
+                                <div class="stat-value" id="analytics-cache">--</div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card section-card">
+                            <h3>Server Overview</h3>
+                            <table class="data-table" id="servers-table">
+                                <thead>
+                                    <tr>
+                                        <th>Server</th>
+                                        <th>Members</th>
+                                        <th>ID</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="3" class="empty-row" id="servers-empty">Loading servers...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="glass-card section-card">
+                            <h3>Message Volume (24h)</h3>
+                            <div id="analytics-chart" class="skeleton skeleton-chart">
+                                <div class="sk-bar" style="height:60%"></div>
+                                <div class="sk-bar" style="height:80%"></div>
+                                <div class="sk-bar" style="height:40%"></div>
+                                <div class="sk-bar" style="height:90%"></div>
+                                <div class="sk-bar" style="height:55%"></div>
+                                <div class="sk-bar" style="height:70%"></div>
+                                <div class="sk-bar" style="height:45%"></div>
+                                <div class="sk-bar" style="height:85%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Moderation Panel -->
+                    <div id="panel-mod" class="panel">
+                        <div class="glass-card section-card">
+                            <div class="flex-header">
+                                <h3>Pending Confirmations</h3>
+                                <span class="badge phase" id="current-phase-badge">DRY_RUN</span>
+                            </div>
+                            <table class="data-table" id="queue-table">
+                                <thead>
+                                    <tr>
+                                        <th>Target</th>
+                                        <th>Action</th>
+                                        <th>Reason</th>
+                                        <th>Confidence</th>
+                                        <th>Controls</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="glass-card section-card">
+                            <h3>Audit Logs</h3>
+                            <table class="data-table" id="audit-table">
+                                <thead>
+                                    <tr>
+                                        <th>Time</th>
+                                        <th>Admin</th>
+                                        <th>Action</th>
+                                        <th>Target/Subsystem</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Settings Panel -->
+                    <div id="panel-config" class="panel">
+                        <div class="glass-card section-card">
+                            <h3>Global Settings</h3>
+                            <div class="form-group">
+                                <label>Moderation Phase</label>
+                                <select id="select-phase">
+                                    <option value="dry_run">Dry Run</option>
+                                    <option value="reactive_limited">Reactive (Limited)</option>
+                                    <option value="reactive_full">Reactive (Full)</option>
+                                </select>
+                                <button id="btn-save-phase" class="btn primary small">Update Phase</button>
+                            </div>
+                            <div class="form-group">
+                                <label>Agent Mode</label>
+                                <select id="select-mode">
+                                    <option value="proactive">Proactive</option>
+                                    <option value="reactive">Reactive</option>
+                                </select>
+                                <button id="btn-save-mode" class="btn primary small">Update Mode</button>
+                            </div>
+                            <div class="danger-zone">
+                                <div>
+                                    <h4>Danger Zone</h4>
+                                    <p>Instantly kill all enforcement and revert to DRY_RUN mode.</p>
+                                </div>
+                                <button id="btn-emergency" class="btn danger">EMERGENCY STOP</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Logs / Live Execution Panel -->
+                    <div id="panel-live" class="panel">
+                        <div class="grid-cards">
+                            <div class="glass-card stat-card">
+                                <h3>System Health</h3>
+                                <div class="stat-value" id="ops-health">--</div>
+                                <div class="stat-trend">Agent + web process</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Memory Usage</h3>
+                                <div class="stat-value" id="ops-memory">--</div>
+                                <div class="stat-trend">Process RSS</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Threads</h3>
+                                <div class="stat-value" id="ops-tasks">0</div>
+                                <div class="stat-trend">Active OS threads</div>
+                            </div>
+                            <div class="glass-card stat-card">
+                                <h3>Database</h3>
+                                <div class="stat-value" id="ops-db">SQLite</div>
+                                <div class="stat-trend">Shared with bot</div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card section-card">
+                            <h3>Active Executions</h3>
+                            <p class="subtitle">Live pipelines built from real agent stages.</p>
+                            <div id="active-executions" class="exec-pipeline-list">
+                                <div class="exec-empty" id="exec-empty-state">Waiting for a real request...</div>
+                            </div>
+                        </div>
+
+                        <div class="glass-card section-card">
+                            <h3>Event Stream</h3>
+                            <p class="subtitle">Raw telemetry events as they fire.</p>
+                            <div class="execution-controls">
+                                <input type="text" id="exec-filter-user" placeholder="Filter User..." class="input-dark">
+                                <input type="text" id="exec-filter-guild" placeholder="Filter Guild..." class="input-dark">
+                                <select id="exec-filter-status" class="input-dark">
+                                    <option value="">All Statuses</option>
+                                    <option value="info">Info</option>
+                                    <option value="success">Success</option>
+                                    <option value="running">Running</option>
+                                    <option value="warning">Warning</option>
+                                    <option value="error">Error</option>
+                                </select>
+                                <button id="btn-clear-telemetry" class="btn primary small">Clear Screen</button>
+                            </div>
+                            <div class="terminal-container live-telemetry-container">
+                                <div class="terminal-header">
+                                    <div class="terminal-dots"><span></span><span></span><span></span></div>
+                                    <div class="terminal-title">azure_telemetry_stream</div>
+                                </div>
+                                <div class="terminal-body" id="live-telemetry-feed">
+                                    <div class="terminal-line"><span class="prompt">azure@core:~$</span> Waiting for execution events...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Users Panel -->
+                    <div id="panel-users" class="panel">
+                        <div class="glass-card section-card">
+                            <h3>Connected Users</h3>
+                            <p class="subtitle">Users currently active across all servers.</p>
+                            <table class="data-table" id="users-table">
+                                <thead>
+                                    <tr>
+                                        <th>Username</th>
+                                        <th>Server</th>
+                                        <th>Role</th>
+                                        <th>Last Active</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr><td colspan="4" class="empty-row">No user data available yet.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Footer -->
+                <div id="azure-footer"></div>
+            </main>
+        </div>
+
+        <!-- Search Modal -->
+        <div id="search-modal">
+            <div class="search-box">
+                <div class="search-input-wrap">
+                    <span class="search-icon">&#128269;</span>
+                    <input type="text" id="search-input" placeholder="Search pages... (1-6 for quick nav)" oninput="AzureNav.renderSearchResults(this.value)">
+                </div>
+                <div id="search-results"></div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/js/nav.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/websocket.js"></script>
+</body>
+</html>
