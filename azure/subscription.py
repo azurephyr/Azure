@@ -16,6 +16,7 @@ Features:
 from __future__ import annotations
 
 import logging
+import math
 import time
 from dataclasses import dataclass, field
 from enum import StrEnum
@@ -157,7 +158,7 @@ class Subscription:
             return None  # No expiration
 
         seconds_remaining = self.end_date - time.time()
-        return max(0, int(seconds_remaining / 86400))
+        return max(0, math.ceil(seconds_remaining / 86400))
 
 
 @dataclass
@@ -365,9 +366,6 @@ class SubscriptionManager:
 
     def get_usage_stats(self, user_id: str) -> UsageStats | None:
         """Get usage statistics for user.
-
-        Args:
-            user_id: User ID
 
         Returns:
             Usage statistics or None

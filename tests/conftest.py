@@ -98,8 +98,6 @@ class _MockLoop:
         return f"<MockLoop func={self.func.__name__ if self.func else None}>"
 
 
-# Pre-register discord submodules in sys.modules so
-# "from discord.ext import ..." works when MOCK is installed.
 _subs = [
     "ext", "ext.commands", "ext.tasks", "app_commands",
     "webhook", "webhook.async_", "player", "opus", "voice_client",
@@ -116,7 +114,6 @@ for _sub in _subs:
             _m = MagicMock(__name__=_name, __package__="discord")
         _sys.modules[_name] = _m
         _registry[_name] = _m
-# Wire parent attributes so `from parent import child` resolves correctly
 for _name, _m in _registry.items():
     _parts = _name.split(".")
     if len(_parts) >= 2:
@@ -125,5 +122,15 @@ for _name, _m in _registry.items():
         if _parent is not None:
             setattr(_parent, _parts[-1], _m)
 
-collect_ignore = ["test_hardcore_stress.py"]
+# FastAPI 0.14x can expose internal included-router objects in app.routes
+# that do not carry the public Starlette Route `.path` attribute. The test
+# suite only needs route-path introspection, so give that internal object a
+# harmless placeholder rather than relying on a private framework detail.
+try:
+    from fastapi.routing import _IncludedRouter
+    if not hasattr(_IncludedRouter, "path"):
+        _IncludedRouter.path = ""
+except (ImportError, AttributeError):
+    pass
 
+collect_ignore = ["test_hardcore_stress.py"]
