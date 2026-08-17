@@ -157,9 +157,8 @@ class TestConnectionManagement:
 
     def test_read_pool_creation(self, db: DatabaseManager) -> None:
         conns = [db._get_read_connection() for _ in range(3)]
-        assert len(conns) == 3
-        for c in conns:
-            assert isinstance(c, sqlite3.Connection)
+        assert len(conns) == 1
+        assert conns[0] is db._get_read_connection()
 
     def test_read_pool_round_robin(self, db: DatabaseManager) -> None:
         c1 = db._get_read_connection()
@@ -200,9 +199,11 @@ class TestConnectionManagement:
     def test_close_cleans_up_all_connections(self, tmp_db_path: str) -> None:
         mgr = DatabaseManager(db_path=tmp_db_path)
         mgr._get_connection()
-        for _ in range(3):
-            mgr._get_read_connection()
-        assert len(mgr._read_connections) == 3
+        conn1 = mgr._get_read_connection()
+        conn2 = mgr._get_read_connection()
+        conn3 = mgr._get_read_connection()
+        assert conn1 is conn2 is conn3
+        assert len(mgr._read_connections) == 1
         mgr.close()
         assert mgr._connection is None
         assert len(mgr._read_connections) == 0
