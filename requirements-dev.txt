@@ -11,4 +11,4 @@ pip-audit>=2.7,<3.0
 
 # Starlette's current TestClient backend
 # Starlette 1.2+ prefers httpx2 and falls back to deprecated classic httpx.
-httpx2>=0.1.0,<1.0
+httpx2>=2.0,<3.0
