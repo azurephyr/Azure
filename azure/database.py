@@ -28,10 +28,21 @@ logger = logging.getLogger("azure.database")
 
 @contextmanager
 def _locked_conn_helper(get_conn, lock) -> Iterator[sqlite3.Connection]:
-    """Serialize access to a shared SQLite connection."""
+    """Serialize access to a shared SQLite connection.
+
+    SQLite is not thread-safe across a single connection even with
+    `check_same_thread=False`. Without this serialization, concurrent
+    callers from different threads (bot + scheduler + web dashboard)
+    surface as `cannot start a transaction within a transaction` and
+    silently drop writes (KL-4).
+    """
     with lock:
         yield get_conn()
 
+
+# =============================================================================
+# Data Models
+# =============================================================================
 
 @dataclass
 class ConversationMessage:
@@ -56,7 +67,7 @@ class UserPreference:
     """User-specific preferences and settings."""
     user_id: str = ""
     user_name: str = ""
-    tier: str = "free"
+    tier: str = "free"  # free, premium, enterprise
     context_size: int = 10
     temperature: float = 0.7
     language: str = "en"
@@ -109,7 +120,6 @@ class AuditLogEntry:
     reason: str = ""
     subsystem: str = ""
 
-
 @dataclass
 class WebUser:
     discord_id: str = ""
@@ -119,29 +129,44 @@ class WebUser:
     last_login: float = 0.0
     created_at: float = 0.0
 
+# =============================================================================
+# Database Manager
+# =============================================================================
 
 class DatabaseManager:
     """Manages SQLite database connections and operations."""
 
     def _execute_with_retry(self, operation, max_retries=3):
         """Execute a database write with retry on transient errors."""
+        import time as _time
         for attempt in range(max_retries):
             try:
                 return operation()
             except sqlite3.OperationalError as e:
                 if ("locked" in str(e).lower() or "busy" in str(e).lower()) and attempt < max_retries - 1:
-                    time.sleep(0.1 * (2 ** attempt))
-                    continue
+                        _time.sleep(0.1 * (2 ** attempt))
+                        continue
                 raise
 
     def __init__(self, db_path: str | Path = "data/azure_bot.db") -> None:
+        """Initialize database manager.
+
+        Args:
+            db_path: Path to SQLite database file
+        """
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._connection: sqlite3.Connection | None = None
+        # Serialize concurrent access to the single shared SQLite
+        # connection. SQLite is not thread-safe across a single
+        # connection even with `check_same_thread=False`; without
+        # serialization concurrent writers (bot + scheduler + web
+        # dashboard) surface as `cannot start a transaction within a
+        # transaction` and silently drop writes (KL-4 fix).
         self._wlock = threading.RLock()
-        # Keep the connection list for cleanup, but give each worker thread
-        # its own read connection so sqlite cursors are never shared across
-        # concurrent threads.
+        # Each reader thread gets its own read-only SQLite connection.
+        # A shared round-robin pool is unsafe because sqlite cursors/connections
+        # can still be used concurrently by multiple threads.
         self._read_connections: list[sqlite3.Connection] = []
         self._read_pool_lock = threading.Lock()
         self._read_local = threading.local()
@@ -149,14 +174,25 @@ class DatabaseManager:
         logger.info(f"[database] Initialized: {self.db_path}")
 
     def _locked_conn(self) -> Iterator[sqlite3.Connection]:
+        """Context manager that yields the shared connection under
+        self._wlock. Use for any operation that performs SQL+commit.
+
+        External callers (audit.py, web/api_moderation.py) that need
+        raw access to the connection should also acquire this lock
+        before using the connection (audit.py path uses
+        `with self.db._wlock:` directly).
+        """
         return _locked_conn_helper(self._get_connection, self._wlock)
 
     def _get_connection(self) -> sqlite3.Connection:
+        """Get or create database connection."""
         if self._connection is None:
             with self._wlock:
                 if self._connection is None:
                     self._connection = sqlite3.connect(
-                        str(self.db_path), check_same_thread=False, timeout=30.0
+                        str(self.db_path),
+                        check_same_thread=False,
+                        timeout=30.0,
                     )
                     self._connection.row_factory = sqlite3.Row
                     try:
@@ -167,11 +203,19 @@ class DatabaseManager:
         return self._connection
 
     def _get_read_connection(self) -> sqlite3.Connection:
-        """Return a read-only SQLite connection owned by the current thread."""
+        """Return a read-only connection owned by the current thread.
+
+        Read connections are created lazily and kept in the shared list
+        solely so ``close()`` can close every worker connection cleanly.
+        SQLite WAL mode allows these concurrent readers to coexist with the
+        single serialized writer connection.
+        """
         conn = getattr(self._read_local, "connection", None)
         if conn is None:
             conn = sqlite3.connect(
-                str(self.db_path), check_same_thread=False, timeout=30.0
+                str(self.db_path),
+                check_same_thread=False,
+                timeout=30.0,
             )
             conn.row_factory = sqlite3.Row
             try:
@@ -186,92 +230,165 @@ class DatabaseManager:
         return conn
 
     def _init_database(self) -> None:
+        """Create database tables if they don't exist."""
+        # Ensure the connection is created *before* acquiring _wlock.
+        # _get_connection() itself acquires _wlock internally during
+        # first-time creation, so nesting it inside our own
+        # ``with self._wlock:`` block would deadlock because
+        # threading.Lock is not reentrant.
         self._get_connection()
         with self._wlock:
             conn = self._get_connection()
             cursor = conn.cursor()
-            statements = [
+
+            # Each statement is wrapped so a single failure doesn't block the rest.
+            _statements = [
+                # Conversation history table
                 """CREATE TABLE IF NOT EXISTS conversation_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id TEXT NOT NULL, user_name TEXT NOT NULL,
-                    server_id TEXT NOT NULL, server_name TEXT NOT NULL,
-                    channel_id TEXT NOT NULL, channel_name TEXT NOT NULL,
-                    message TEXT NOT NULL, response TEXT NOT NULL,
-                    timestamp REAL NOT NULL, cached INTEGER DEFAULT 0,
-                    tokens_used INTEGER DEFAULT 0, response_time_ms INTEGER DEFAULT 0
+                    user_id TEXT NOT NULL,
+                    user_name TEXT NOT NULL,
+                    server_id TEXT NOT NULL,
+                    server_name TEXT NOT NULL,
+                    channel_id TEXT NOT NULL,
+                    channel_name TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    timestamp REAL NOT NULL,
+                    cached INTEGER DEFAULT 0,
+                    tokens_used INTEGER DEFAULT 0,
+                    response_time_ms INTEGER DEFAULT 0
                 )""",
                 "CREATE INDEX IF NOT EXISTS idx_user_id ON conversation_history(user_id)",
                 "CREATE INDEX IF NOT EXISTS idx_server_id ON conversation_history(server_id)",
                 "CREATE INDEX IF NOT EXISTS idx_timestamp ON conversation_history(timestamp)",
                 "CREATE INDEX IF NOT EXISTS idx_user_ts ON conversation_history(user_id, timestamp)",
+                # User preferences table
                 """CREATE TABLE IF NOT EXISTS user_preferences (
-                    user_id TEXT PRIMARY KEY, user_name TEXT NOT NULL,
-                    tier TEXT DEFAULT 'free', context_size INTEGER DEFAULT 10,
-                    temperature REAL DEFAULT 0.7, language TEXT DEFAULT 'en',
-                    custom_system_prompt TEXT, disabled INTEGER DEFAULT 0,
-                    created_at REAL NOT NULL, updated_at REAL NOT NULL
+                    user_id TEXT PRIMARY KEY,
+                    user_name TEXT NOT NULL,
+                    tier TEXT DEFAULT 'free',
+                    context_size INTEGER DEFAULT 10,
+                    temperature REAL DEFAULT 0.7,
+                    language TEXT DEFAULT 'en',
+                    custom_system_prompt TEXT,
+                    disabled INTEGER DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    updated_at REAL NOT NULL
                 )""",
+                # Cache table
                 """CREATE TABLE IF NOT EXISTS response_cache (
-                    cache_key TEXT PRIMARY KEY, prompt TEXT NOT NULL, response TEXT NOT NULL,
-                    user_id TEXT NOT NULL, server_id TEXT NOT NULL,
-                    hit_count INTEGER DEFAULT 0, created_at REAL NOT NULL,
-                    last_accessed REAL NOT NULL, expires_at REAL NOT NULL
+                    cache_key TEXT PRIMARY KEY,
+                    prompt TEXT NOT NULL,
+                    response TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    server_id TEXT NOT NULL,
+                    hit_count INTEGER DEFAULT 0,
+                    created_at REAL NOT NULL,
+                    last_accessed REAL NOT NULL,
+                    expires_at REAL NOT NULL
                 )""",
                 "CREATE INDEX IF NOT EXISTS idx_cache_expires ON response_cache(expires_at)",
                 "CREATE INDEX IF NOT EXISTS idx_cache_user ON response_cache(user_id)",
+                # Statistics table
                 """CREATE TABLE IF NOT EXISTS bot_stats (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp REAL NOT NULL,
-                    messages_processed INTEGER DEFAULT 0, cache_hits INTEGER DEFAULT 0,
-                    cache_misses INTEGER DEFAULT 0, errors INTEGER DEFAULT 0,
-                    avg_response_time_ms REAL DEFAULT 0.0, total_tokens_used INTEGER DEFAULT 0,
-                    active_users INTEGER DEFAULT 0, active_servers INTEGER DEFAULT 0
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    messages_processed INTEGER DEFAULT 0,
+                    cache_hits INTEGER DEFAULT 0,
+                    cache_misses INTEGER DEFAULT 0,
+                    errors INTEGER DEFAULT 0,
+                    avg_response_time_ms REAL DEFAULT 0.0,
+                    total_tokens_used INTEGER DEFAULT 0,
+                    active_users INTEGER DEFAULT 0,
+                    active_servers INTEGER DEFAULT 0
                 )""",
                 "CREATE INDEX IF NOT EXISTS idx_stats_timestamp ON bot_stats(timestamp)",
+                # Audit logs
                 """CREATE TABLE IF NOT EXISTS audit_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp REAL NOT NULL,
-                    user_name TEXT NOT NULL, discord_id TEXT NOT NULL, ip_address TEXT,
-                    session_id TEXT, action TEXT NOT NULL, old_value TEXT, new_value TEXT,
-                    reason TEXT, subsystem TEXT NOT NULL
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    user_name TEXT NOT NULL,
+                    discord_id TEXT NOT NULL,
+                    ip_address TEXT,
+                    session_id TEXT,
+                    action TEXT NOT NULL,
+                    old_value TEXT,
+                    new_value TEXT,
+                    reason TEXT,
+                    subsystem TEXT NOT NULL
                 )""",
                 "CREATE INDEX IF NOT EXISTS idx_audit_time ON audit_logs(timestamp)",
                 "CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(discord_id)",
+                # Access Control table
                 """CREATE TABLE IF NOT EXISTS access_control (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, target_type TEXT NOT NULL,
-                    target_id TEXT NOT NULL, permission TEXT NOT NULL, enabled INTEGER DEFAULT 1,
-                    added_by TEXT NOT NULL, timestamp REAL NOT NULL
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    target_type TEXT NOT NULL,
+                    target_id TEXT NOT NULL,
+                    permission TEXT NOT NULL,
+                    enabled INTEGER DEFAULT 1,
+                    added_by TEXT NOT NULL,
+                    timestamp REAL NOT NULL
                 )""",
                 "CREATE INDEX IF NOT EXISTS idx_ac_target ON access_control(target_id)",
+                # Security Events table
                 """CREATE TABLE IF NOT EXISTS security_events (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, timestamp REAL NOT NULL,
-                    user_id TEXT NOT NULL, guild_id TEXT, event_type TEXT NOT NULL,
-                    severity TEXT NOT NULL, details TEXT NOT NULL
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp REAL NOT NULL,
+                    user_id TEXT NOT NULL,
+                    guild_id TEXT,
+                    event_type TEXT NOT NULL,
+                    severity TEXT NOT NULL,
+                    details TEXT NOT NULL
                 )""",
                 "CREATE INDEX IF NOT EXISTS idx_sec_time ON security_events(timestamp)",
+                # Telemetry Logs table
                 """CREATE TABLE IF NOT EXISTS telemetry_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT, execution_id TEXT NOT NULL,
-                    timestamp REAL NOT NULL, subsystem TEXT NOT NULL, action TEXT NOT NULL,
-                    message TEXT NOT NULL, status TEXT NOT NULL
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    execution_id TEXT NOT NULL,
+                    timestamp REAL NOT NULL,
+                    subsystem TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    status TEXT NOT NULL
                 )""",
                 "CREATE INDEX IF NOT EXISTS idx_tel_exec ON telemetry_logs(execution_id)",
+                # Web users
                 """CREATE TABLE IF NOT EXISTS web_users (
-                    discord_id TEXT PRIMARY KEY, username TEXT NOT NULL, avatar_url TEXT,
-                    role TEXT DEFAULT 'user', last_login REAL NOT NULL, created_at REAL NOT NULL
+                    discord_id TEXT PRIMARY KEY,
+                    username TEXT NOT NULL,
+                    avatar_url TEXT,
+                    role TEXT DEFAULT 'user',
+                    last_login REAL NOT NULL,
+                    created_at REAL NOT NULL
                 )""",
+                # API keys
                 """CREATE TABLE IF NOT EXISTS api_keys (
-                    key_hash TEXT PRIMARY KEY, user_id TEXT NOT NULL, name TEXT NOT NULL,
-                    scopes TEXT NOT NULL, created_at REAL NOT NULL, last_used REAL NOT NULL,
+                    key_hash TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    scopes TEXT NOT NULL,
+                    created_at REAL NOT NULL,
+                    last_used REAL NOT NULL,
                     expires_at REAL NOT NULL
                 )""",
             ]
-            for stmt in statements:
+
+            for stmt in _statements:
                 try:
                     cursor.execute(stmt)
                 except Exception as e:
                     logger.warning("[database] Schema statement failed: %s — %s", e, stmt.strip()[:80])
+
             conn.commit()
         logger.info("[database] Schema initialized")
 
+    # =========================================================================
+    # Conversation History
+    # =========================================================================
+
     def save_conversation(self, msg: ConversationMessage) -> int:
+        """Save a conversation message to database."""
         def _do_save():
             with self._locked_conn() as conn:
                 cursor = conn.cursor()
@@ -281,15 +398,20 @@ class DatabaseManager:
                         channel_id, channel_name, message, response,
                         timestamp, cached, tokens_used, response_time_ms
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (msg.user_id, msg.user_name, msg.server_id, msg.server_name,
-                       msg.channel_id, msg.channel_name, msg.message, msg.response,
-                       msg.timestamp, int(msg.cached), msg.tokens_used, msg.response_time_ms))
+                """, (
+                    msg.user_id, msg.user_name, msg.server_id, msg.server_name,
+                    msg.channel_id, msg.channel_name, msg.message, msg.response,
+                    msg.timestamp, int(msg.cached), msg.tokens_used, msg.response_time_ms
+                ))
                 conn.commit()
                 return cursor.lastrowid
         return self._execute_with_retry(_do_save)
 
-    def get_conversation_history(self, user_id: str | None = None, server_id: str | None = None,
-                                 limit: int = 100, since: float | None = None) -> list[ConversationMessage]:
+    def get_conversation_history(
+        self, user_id: str | None = None, server_id: str | None = None,
+        limit: int = 100, since: float | None = None
+    ) -> list[ConversationMessage]:
+        """Retrieve conversation history with filters."""
         conn = self._get_read_connection()
         cursor = conn.cursor()
         query = "SELECT * FROM conversation_history WHERE 1=1"
@@ -303,13 +425,21 @@ class DatabaseManager:
         query += " ORDER BY timestamp DESC LIMIT ?"; params.append(limit)
         cursor.execute(query, params)
         rows = cursor.fetchall()
-        return [ConversationMessage(id=row["id"], user_id=row["user_id"], user_name=row["user_name"],
-            server_id=row["server_id"], server_name=row["server_name"], channel_id=row["channel_id"],
-            channel_name=row["channel_name"], message=row["message"], response=row["response"],
-            timestamp=row["timestamp"], cached=bool(row["cached"]), tokens_used=row["tokens_used"],
-            response_time_ms=row["response_time_ms"]) for row in rows]
+        return [ConversationMessage(
+            id=row["id"], user_id=row["user_id"], user_name=row["user_name"],
+            server_id=row["server_id"], server_name=row["server_name"],
+            channel_id=row["channel_id"], channel_name=row["channel_name"],
+            message=row["message"], response=row["response"],
+            timestamp=row["timestamp"], cached=bool(row["cached"]),
+            tokens_used=row["tokens_used"], response_time_ms=row["response_time_ms"]
+        ) for row in rows]
+
+    # =========================================================================
+    # User Preferences
+    # =========================================================================
 
     def save_user_preference(self, pref: UserPreference) -> None:
+        """Save or update user preferences."""
         def _do_save():
             with self._locked_conn() as conn:
                 cursor = conn.cursor()
@@ -318,22 +448,35 @@ class DatabaseManager:
                         user_id, user_name, tier, context_size, temperature,
                         language, custom_system_prompt, disabled, created_at, updated_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (pref.user_id, pref.user_name, pref.tier, pref.context_size,
-                       pref.temperature, pref.language, pref.custom_system_prompt,
-                       int(pref.disabled), pref.created_at, pref.updated_at))
+                """, (
+                    pref.user_id, pref.user_name, pref.tier, pref.context_size,
+                    pref.temperature, pref.language, pref.custom_system_prompt,
+                    int(pref.disabled), pref.created_at, pref.updated_at
+                ))
                 conn.commit()
         self._execute_with_retry(_do_save)
 
     def get_user_preference(self, user_id: str) -> UserPreference | None:
-        conn = self._get_read_connection(); cursor = conn.cursor()
-        cursor.execute("SELECT * FROM user_preferences WHERE user_id = ?", (user_id,)); row = cursor.fetchone()
-        if not row: return None
-        return UserPreference(user_id=row["user_id"], user_name=row["user_name"], tier=row["tier"],
-            context_size=row["context_size"], temperature=row["temperature"], language=row["language"],
-            custom_system_prompt=row["custom_system_prompt"], disabled=bool(row["disabled"]),
-            created_at=row["created_at"], updated_at=row["updated_at"])
+        """Retrieve user preferences."""
+        conn = self._get_read_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM user_preferences WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return None
+        return UserPreference(
+            user_id=row["user_id"], user_name=row["user_name"], tier=row["tier"],
+            context_size=row["context_size"], temperature=row["temperature"],
+            language=row["language"], custom_system_prompt=row["custom_system_prompt"],
+            disabled=bool(row["disabled"]), created_at=row["created_at"], updated_at=row["updated_at"]
+        )
+
+    # =========================================================================
+    # Response Cache
+    # =========================================================================
 
     def save_cache_entry(self, entry: CacheEntry) -> None:
+        """Save a cache entry to database."""
         def _do_save():
             with self._locked_conn() as conn:
                 cursor = conn.cursor()
@@ -342,117 +485,231 @@ class DatabaseManager:
                         cache_key, prompt, response, user_id, server_id,
                         hit_count, created_at, last_accessed, expires_at
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (entry.cache_key, entry.prompt, entry.response, entry.user_id,
-                       entry.server_id, entry.hit_count, entry.created_at, entry.last_accessed, entry.expires_at))
+                """, (
+                    entry.cache_key, entry.prompt, entry.response, entry.user_id,
+                    entry.server_id, entry.hit_count, entry.created_at,
+                    entry.last_accessed, entry.expires_at
+                ))
                 conn.commit()
         self._execute_with_retry(_do_save)
 
     def get_cache_entry(self, cache_key: str) -> CacheEntry | None:
+        """Retrieve a cache entry and bump hit stats."""
         now = time.time()
         with self._locked_conn() as conn:
-            cursor = conn.cursor(); cursor.execute("""
-                SELECT * FROM response_cache WHERE cache_key = ? AND expires_at > ?
-            """, (cache_key, now)); row = cursor.fetchone()
-            if not row: return None
-            cursor.execute("""UPDATE response_cache SET hit_count = hit_count + 1, last_accessed = ? WHERE cache_key = ?""", (now, cache_key))
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM response_cache
+                WHERE cache_key = ? AND expires_at > ?
+            """, (cache_key, now))
+            row = cursor.fetchone()
+            if not row:
+                return None
+            cursor.execute("""
+                UPDATE response_cache
+                SET hit_count = hit_count + 1, last_accessed = ?
+                WHERE cache_key = ?
+            """, (now, cache_key))
             conn.commit()
-            return CacheEntry(cache_key=row["cache_key"], prompt=row["prompt"], response=row["response"],
-                user_id=row["user_id"], server_id=row["server_id"], hit_count=row["hit_count"] + 1,
-                created_at=row["created_at"], last_accessed=now, expires_at=row["expires_at"])
+            return CacheEntry(
+                cache_key=row["cache_key"], prompt=row["prompt"], response=row["response"],
+                user_id=row["user_id"], server_id=row["server_id"],
+                hit_count=row["hit_count"] + 1, created_at=row["created_at"],
+                last_accessed=now, expires_at=row["expires_at"]
+            )
 
     def cleanup_expired_cache(self) -> int:
+        """Remove expired cache entries."""
         with self._locked_conn() as conn:
-            cursor = conn.cursor(); cursor.execute("DELETE FROM response_cache WHERE expires_at <= ?", (time.time(),)); conn.commit()
+            cursor = conn.cursor()
+            now = time.time()
+            cursor.execute("DELETE FROM response_cache WHERE expires_at <= ?", (now,))
+            conn.commit()
             deleted = cursor.rowcount
-            if deleted > 0: logger.info(f"[database] Cleaned up {deleted} expired cache entries")
+            if deleted > 0:
+                logger.info(f"[database] Cleaned up {deleted} expired cache entries")
             return deleted
 
+    # =========================================================================
+    # Statistics
+    # =========================================================================
+
     def save_stats(self, stats: BotStats) -> int:
+        """Save bot statistics snapshot."""
         def _do_save():
             with self._locked_conn() as conn:
-                cursor = conn.cursor(); cursor.execute("""
+                cursor = conn.cursor()
+                cursor.execute("""
                     INSERT INTO bot_stats (
                         timestamp, messages_processed, cache_hits, cache_misses,
-                        errors, avg_response_time_ms, total_tokens_used, active_users, active_servers
+                        errors, avg_response_time_ms, total_tokens_used,
+                        active_users, active_servers
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (stats.timestamp, stats.messages_processed, stats.cache_hits, stats.cache_misses,
-                       stats.errors, stats.avg_response_time_ms, stats.total_tokens_used,
-                       stats.active_users, stats.active_servers)); conn.commit(); return cursor.lastrowid
+                """, (
+                    stats.timestamp, stats.messages_processed, stats.cache_hits,
+                    stats.cache_misses, stats.errors, stats.avg_response_time_ms,
+                    stats.total_tokens_used, stats.active_users, stats.active_servers
+                ))
+                conn.commit()
+                return cursor.lastrowid
         return self._execute_with_retry(_do_save)
 
     def get_stats_history(self, hours: int = 24, limit: int = 1000) -> list[BotStats]:
-        conn = self._get_read_connection(); cursor = conn.cursor(); since = time.time() - (hours * 3600)
-        cursor.execute("""SELECT * FROM bot_stats WHERE timestamp > ? ORDER BY timestamp DESC LIMIT ?""", (since, limit))
+        """Retrieve recent statistics history."""
+        since = time.time() - (hours * 3600)
+        conn = self._get_read_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM bot_stats
+            WHERE timestamp > ?
+            ORDER BY timestamp DESC
+            LIMIT ?
+        """, (since, limit))
         rows = cursor.fetchall()
-        return [BotStats(id=row["id"], timestamp=row["timestamp"], messages_processed=row["messages_processed"],
-            cache_hits=row["cache_hits"], cache_misses=row["cache_misses"], errors=row["errors"],
-            avg_response_time_ms=row["avg_response_time_ms"], total_tokens_used=row["total_tokens_used"],
-            active_users=row["active_users"], active_servers=row["active_servers"]) for row in rows]
+        return [BotStats(
+            id=row["id"], timestamp=row["timestamp"],
+            messages_processed=row["messages_processed"], cache_hits=row["cache_hits"],
+            cache_misses=row["cache_misses"], errors=row["errors"],
+            avg_response_time_ms=row["avg_response_time_ms"],
+            total_tokens_used=row["total_tokens_used"], active_users=row["active_users"],
+            active_servers=row["active_servers"]
+        ) for row in rows]
 
     def get_aggregate_stats(self, hours: int = 24) -> dict[str, Any]:
-        conn = self._get_read_connection(); cursor = conn.cursor(); since = time.time() - (hours * 3600)
-        cursor.execute("""SELECT SUM(messages_processed) as total_messages,
-            SUM(cache_hits) as total_cache_hits, SUM(cache_misses) as total_cache_misses,
-            SUM(errors) as total_errors, AVG(avg_response_time_ms) as avg_response_time,
-            SUM(total_tokens_used) as total_tokens, MAX(active_users) as peak_users,
-            MAX(active_servers) as peak_servers FROM bot_stats WHERE timestamp > ?""", (since,))
+        """Get aggregated statistics for a time period."""
+        since = time.time() - (hours * 3600)
+        conn = self._get_read_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT
+                SUM(messages_processed) as total_messages,
+                SUM(cache_hits) as total_cache_hits,
+                SUM(cache_misses) as total_cache_misses,
+                SUM(errors) as total_errors,
+                AVG(avg_response_time_ms) as avg_response_time,
+                SUM(total_tokens_used) as total_tokens,
+                MAX(active_users) as peak_users,
+                MAX(active_servers) as peak_servers
+            FROM bot_stats
+            WHERE timestamp > ?
+        """, (since,))
         row = cursor.fetchone()
         if not row:
-            return {"total_messages": 0,"total_cache_hits": 0,"total_cache_misses": 0,"total_errors": 0,
-                    "avg_response_time_ms": 0.0,"total_tokens": 0,"peak_users": 0,"peak_servers": 0,"cache_hit_rate": 0.0}
-        hits = row["total_cache_hits"] or 0; misses = row["total_cache_misses"] or 0
-        return {"total_messages": row["total_messages"] or 0,"total_cache_hits": hits,"total_cache_misses": misses,
-                "total_errors": row["total_errors"] or 0,"avg_response_time_ms": row["avg_response_time"] or 0.0,
-                "total_tokens": row["total_tokens"] or 0,"peak_users": row["peak_users"] or 0,
-                "peak_servers": row["peak_servers"] or 0,"cache_hit_rate": (hits/(hits+misses)) if (hits+misses)>0 else 0.0}
+            return {
+                "total_messages": 0, "total_cache_hits": 0, "total_cache_misses": 0,
+                "total_errors": 0, "avg_response_time_ms": 0.0, "total_tokens": 0,
+                "peak_users": 0, "peak_servers": 0, "cache_hit_rate": 0.0,
+            }
+        hits = row["total_cache_hits"] or 0
+        misses = row["total_cache_misses"] or 0
+        return {
+            "total_messages": row["total_messages"] or 0,
+            "total_cache_hits": hits,
+            "total_cache_misses": misses,
+            "total_errors": row["total_errors"] or 0,
+            "avg_response_time_ms": row["avg_response_time"] or 0.0,
+            "total_tokens": row["total_tokens"] or 0,
+            "peak_users": row["peak_users"] or 0,
+            "peak_servers": row["peak_servers"] or 0,
+            "cache_hit_rate": (hits / (hits + misses)) if (hits + misses) > 0 else 0.0,
+        }
+
+    # =========================================================================
+    # Utility Methods
+    # =========================================================================
 
     def vacuum(self) -> None:
+        """Optimize database (reclaim space, rebuild indexes)."""
         with self._locked_conn() as conn:
-            conn.execute("VACUUM"); conn.commit(); logger.info("[database] Database optimized")
+            conn.execute("VACUUM")
+            conn.commit()
+            logger.info("[database] Database optimized")
 
     def close(self) -> None:
+        """Close all database connections under the write lock (no in-flight SQL)."""
         with self._wlock:
             if self._connection:
-                try: self._connection.close()
-                finally: self._connection = None
+                try:
+                    self._connection.close()
+                finally:
+                    self._connection = None
                 logger.info("[database] Write connection closed")
         with self._read_pool_lock:
             for conn in self._read_connections:
-                try: conn.close()
-                except Exception as e: logger.error("Failed to close read connection: %s", e)
+                try:
+                    conn.close()
+                except Exception as e:
+                    logger.error("Failed to close read connection: %s", e)
             self._read_connections.clear()
-        logger.info("[database] Read pool closed")
+            logger.info("[database] Read pool closed")
+
+    # =========================================================================
+    # Control Center: Access Control, Security, Telemetry
+    # =========================================================================
 
     def set_access_control(self, target_type: str, target_id: str, permission: str, added_by: str) -> None:
+        """Set an access control rule (whitelist/blacklist/role) for a user, channel, or guild."""
         with self._locked_conn() as conn:
-            cursor = conn.cursor(); cursor.execute("DELETE FROM access_control WHERE target_id = ?", (target_id,)); cursor.execute("""
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM access_control WHERE target_id = ?", (target_id,))
+            cursor.execute("""
                 INSERT INTO access_control (target_type, target_id, permission, enabled, added_by, timestamp)
                 VALUES (?, ?, ?, 1, ?, ?)
-            """, (target_type, target_id, permission, added_by, time.time())); conn.commit()
+            """, (target_type, target_id, permission, added_by, time.time()))
+            conn.commit()
 
     def get_access_control(self, target_id: str) -> str | None:
-        conn = self._get_read_connection(); cursor = conn.cursor(); cursor.execute("SELECT permission FROM access_control WHERE target_id = ? AND enabled = 1", (target_id,)); row = cursor.fetchone(); return row["permission"] if row else None
+        """Get the access permission for a target_id, if any."""
+        conn = self._get_read_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT permission FROM access_control WHERE target_id = ? AND enabled = 1", (target_id,))
+        row = cursor.fetchone()
+        return row["permission"] if row else None
 
     def log_security_event(self, user_id: str, guild_id: str, event_type: str, severity: str, details: str) -> None:
+        """Log a security event like a jailbreak attempt or spam."""
         with self._locked_conn() as conn:
-            cursor = conn.cursor(); cursor.execute("""INSERT INTO security_events (timestamp, user_id, guild_id, event_type, severity, details) VALUES (?, ?, ?, ?, ?, ?)""", (time.time(), user_id, guild_id, event_type, severity, details)); conn.commit()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO security_events (timestamp, user_id, guild_id, event_type, severity, details)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (time.time(), user_id, guild_id, event_type, severity, details))
+            conn.commit()
 
     def log_telemetry(self, execution_id: str, subsystem: str, action: str, message: str, status: str) -> None:
+        """Log a telemetry trace from an execution."""
         with self._locked_conn() as conn:
-            cursor = conn.cursor(); cursor.execute("""INSERT INTO telemetry_logs (execution_id, timestamp, subsystem, action, message, status) VALUES (?, ?, ?, ?, ?, ?)""", (execution_id, time.time(), subsystem, action, message, status)); conn.commit()
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO telemetry_logs (execution_id, timestamp, subsystem, action, message, status)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (execution_id, time.time(), subsystem, action, message, status))
+            conn.commit()
 
     def __enter__(self) -> DatabaseManager:
+        """Context manager entry."""
         return self
 
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        """Context manager exit."""
         self.close()
 
+
+# =============================================================================
+# Process-wide singleton — bot, web dashboard, handlers share one DB instance
+# =============================================================================
 
 _shared_db: DatabaseManager | None = None
 _shared_db_lock = threading.Lock()
 
 
 def get_shared_db(db_path: str | Path = "data/azure_bot.db") -> DatabaseManager:
+    """Return the process-wide DatabaseManager (create once).
+
+    Multiple `DatabaseManager()` constructions open multiple connections and
+    lose shared in-memory coordination. Bot + FastAPI must share this instance
+    so dashboard stats/audit/telemetry match the live bot writes.
+    """
     global _shared_db
     with _shared_db_lock:
         if _shared_db is None:
@@ -461,6 +718,7 @@ def get_shared_db(db_path: str | Path = "data/azure_bot.db") -> DatabaseManager:
 
 
 def set_shared_db(db: DatabaseManager) -> DatabaseManager:
+    """Install an existing manager as the process singleton (tests / custom paths)."""
     global _shared_db
     with _shared_db_lock:
         _shared_db = db
