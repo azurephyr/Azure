@@ -164,12 +164,12 @@ class DatabaseManager:
         # dashboard) surface as `cannot start a transaction within a
         # transaction` and silently drop writes (KL-4 fix).
         self._wlock = threading.RLock()
-        # Read-only connection pool — allows concurrent dashboard reads
-        # without blocking writers.  SQLite WAL mode supports multiple
-        # concurrent readers alongside a single writer.
+        # Each reader thread gets its own read-only SQLite connection.
+        # A shared round-robin pool is unsafe because sqlite cursors/connections
+        # can still be used concurrently by multiple threads.
         self._read_connections: list[sqlite3.Connection] = []
         self._read_pool_lock = threading.Lock()
-        self._read_pool_index = 0  # round-robin counter
+        self._read_local = threading.local()
         self._init_database()
         logger.info(f"[database] Initialized: {self.db_path}")
 
@@ -203,34 +203,31 @@ class DatabaseManager:
         return self._connection
 
     def _get_read_connection(self) -> sqlite3.Connection:
-        """Return a read-only connection from the pool (round-robin).
+        """Return a read-only connection owned by the current thread.
 
-        Read connections are created lazily on first access.  Each has
-        ``PRAGMA journal_mode=WAL`` (for shared-state consistency with
-        the writer) and ``PRAGMA query_only=ON`` so accidental writes
-        raise an error instead of corrupting the pool semantics.
+        Read connections are created lazily and kept in the shared list
+        solely so ``close()`` can close every worker connection cleanly.
+        SQLite WAL mode allows these concurrent readers to coexist with the
+        single serialized writer connection.
         """
-        with self._read_pool_lock:
-            pool_size = 3
-            if len(self._read_connections) < pool_size:
-                conn = sqlite3.connect(
-                    str(self.db_path),
-                    check_same_thread=False,
-                    timeout=30.0,
-                )
-                conn.row_factory = sqlite3.Row
-                try:
-                    conn.execute("PRAGMA journal_mode=WAL")
-                    conn.execute("PRAGMA query_only=ON")
-                    conn.execute("PRAGMA busy_timeout=5000")
-                except sqlite3.Error as e:
-                    logger.warning("[database] read-conn PRAGMA setup failed: %s", e)
+        conn = getattr(self._read_local, "connection", None)
+        if conn is None:
+            conn = sqlite3.connect(
+                str(self.db_path),
+                check_same_thread=False,
+                timeout=30.0,
+            )
+            conn.row_factory = sqlite3.Row
+            try:
+                conn.execute("PRAGMA journal_mode=WAL")
+                conn.execute("PRAGMA query_only=ON")
+                conn.execute("PRAGMA busy_timeout=5000")
+            except sqlite3.Error as e:
+                logger.warning("[database] read-conn PRAGMA setup failed: %s", e)
+            self._read_local.connection = conn
+            with self._read_pool_lock:
                 self._read_connections.append(conn)
-                idx = len(self._read_connections) - 1
-            else:
-                idx = self._read_pool_index % pool_size
-                self._read_pool_index = self._read_pool_index + 1
-            return self._read_connections[idx]
+        return conn
 
     def _init_database(self) -> None:
         """Create database tables if they don't exist."""
@@ -391,14 +388,7 @@ class DatabaseManager:
     # =========================================================================
 
     def save_conversation(self, msg: ConversationMessage) -> int:
-        """Save a conversation message to database.
-
-        Args:
-            msg: ConversationMessage instance
-
-        Returns:
-            Database row ID
-        """
+        """Save a conversation message to database."""
         def _do_save():
             with self._locked_conn() as conn:
                 cursor = conn.cursor()
@@ -418,61 +408,30 @@ class DatabaseManager:
         return self._execute_with_retry(_do_save)
 
     def get_conversation_history(
-        self,
-        user_id: str | None = None,
-        server_id: str | None = None,
-        limit: int = 100,
-        since: float | None = None
+        self, user_id: str | None = None, server_id: str | None = None,
+        limit: int = 100, since: float | None = None
     ) -> list[ConversationMessage]:
-        """Retrieve conversation history with filters.
-
-        Args:
-            user_id: Filter by user ID (optional)
-            server_id: Filter by server ID (optional)
-            limit: Maximum number of results
-            since: Only return messages after this timestamp (optional)
-
-        Returns:
-            List of ConversationMessage objects
-        """
+        """Retrieve conversation history with filters."""
         conn = self._get_read_connection()
         cursor = conn.cursor()
-
         query = "SELECT * FROM conversation_history WHERE 1=1"
         params: list[Any] = []
-
         if user_id:
-            query += " AND user_id = ?"
-            params.append(user_id)
-
+            query += " AND user_id = ?"; params.append(user_id)
         if server_id:
-            query += " AND server_id = ?"
-            params.append(server_id)
-
+            query += " AND server_id = ?"; params.append(server_id)
         if since:
-            query += " AND timestamp > ?"
-            params.append(since)
-
-        query += " ORDER BY timestamp DESC LIMIT ?"
-        params.append(limit)
-
+            query += " AND timestamp > ?"; params.append(since)
+        query += " ORDER BY timestamp DESC LIMIT ?"; params.append(limit)
         cursor.execute(query, params)
         rows = cursor.fetchall()
-
         return [ConversationMessage(
-            id=row["id"],
-            user_id=row["user_id"],
-            user_name=row["user_name"],
-            server_id=row["server_id"],
-            server_name=row["server_name"],
-            channel_id=row["channel_id"],
-            channel_name=row["channel_name"],
-            message=row["message"],
-            response=row["response"],
-            timestamp=row["timestamp"],
-            cached=bool(row["cached"]),
-            tokens_used=row["tokens_used"],
-            response_time_ms=row["response_time_ms"]
+            id=row["id"], user_id=row["user_id"], user_name=row["user_name"],
+            server_id=row["server_id"], server_name=row["server_name"],
+            channel_id=row["channel_id"], channel_name=row["channel_name"],
+            message=row["message"], response=row["response"],
+            timestamp=row["timestamp"], cached=bool(row["cached"]),
+            tokens_used=row["tokens_used"], response_time_ms=row["response_time_ms"]
         ) for row in rows]
 
     # =========================================================================
@@ -480,11 +439,7 @@ class DatabaseManager:
     # =========================================================================
 
     def save_user_preference(self, pref: UserPreference) -> None:
-        """Save or update user preferences.
-
-        Args:
-            pref: UserPreference instance
-        """
+        """Save or update user preferences."""
         def _do_save():
             with self._locked_conn() as conn:
                 cursor = conn.cursor()
@@ -502,34 +457,18 @@ class DatabaseManager:
         self._execute_with_retry(_do_save)
 
     def get_user_preference(self, user_id: str) -> UserPreference | None:
-        """Retrieve user preferences.
-
-        Args:
-            user_id: User ID to lookup
-
-        Returns:
-            UserPreference instance or None if not found
-        """
+        """Retrieve user preferences."""
         conn = self._get_read_connection()
         cursor = conn.cursor()
-
         cursor.execute("SELECT * FROM user_preferences WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
-
         if not row:
             return None
-
         return UserPreference(
-            user_id=row["user_id"],
-            user_name=row["user_name"],
-            tier=row["tier"],
-            context_size=row["context_size"],
-            temperature=row["temperature"],
-            language=row["language"],
-            custom_system_prompt=row["custom_system_prompt"],
-            disabled=bool(row["disabled"]),
-            created_at=row["created_at"],
-            updated_at=row["updated_at"]
+            user_id=row["user_id"], user_name=row["user_name"], tier=row["tier"],
+            context_size=row["context_size"], temperature=row["temperature"],
+            language=row["language"], custom_system_prompt=row["custom_system_prompt"],
+            disabled=bool(row["disabled"]), created_at=row["created_at"], updated_at=row["updated_at"]
         )
 
     # =========================================================================
@@ -537,11 +476,7 @@ class DatabaseManager:
     # =========================================================================
 
     def save_cache_entry(self, entry: CacheEntry) -> None:
-        """Save a cache entry to database.
-
-        Args:
-            entry: CacheEntry instance
-        """
+        """Save a cache entry to database."""
         def _do_save():
             with self._locked_conn() as conn:
                 cursor = conn.cursor()
@@ -559,13 +494,7 @@ class DatabaseManager:
         self._execute_with_retry(_do_save)
 
     def get_cache_entry(self, cache_key: str) -> CacheEntry | None:
-        """Retrieve a cache entry and bump hit stats.
-
-        Must hold `_wlock` for the SELECT+UPDATE+commit unit. A bare
-        `_get_connection()` write races with other locked writers and
-        reproduces the KL-4 failure class
-        (`cannot start a transaction within a transaction` / dropped hits).
-        """
+        """Retrieve a cache entry and bump hit stats."""
         now = time.time()
         with self._locked_conn() as conn:
             cursor = conn.cursor()
@@ -576,44 +505,29 @@ class DatabaseManager:
             row = cursor.fetchone()
             if not row:
                 return None
-
-            # Hit accounting is a write — keep it inside the same locked txn.
             cursor.execute("""
                 UPDATE response_cache
                 SET hit_count = hit_count + 1, last_accessed = ?
                 WHERE cache_key = ?
             """, (now, cache_key))
             conn.commit()
-
             return CacheEntry(
-                cache_key=row["cache_key"],
-                prompt=row["prompt"],
-                response=row["response"],
-                user_id=row["user_id"],
-                server_id=row["server_id"],
-                hit_count=row["hit_count"] + 1,
-                created_at=row["created_at"],
-                last_accessed=now,
-                expires_at=row["expires_at"]
+                cache_key=row["cache_key"], prompt=row["prompt"], response=row["response"],
+                user_id=row["user_id"], server_id=row["server_id"],
+                hit_count=row["hit_count"] + 1, created_at=row["created_at"],
+                last_accessed=now, expires_at=row["expires_at"]
             )
 
     def cleanup_expired_cache(self) -> int:
-        """Remove expired cache entries.
-
-        Returns:
-            Number of entries removed
-        """
+        """Remove expired cache entries."""
         with self._locked_conn() as conn:
             cursor = conn.cursor()
-
             now = time.time()
             cursor.execute("DELETE FROM response_cache WHERE expires_at <= ?", (now,))
             conn.commit()
-
             deleted = cursor.rowcount
             if deleted > 0:
                 logger.info(f"[database] Cleaned up {deleted} expired cache entries")
-
             return deleted
 
     # =========================================================================
@@ -621,14 +535,7 @@ class DatabaseManager:
     # =========================================================================
 
     def save_stats(self, stats: BotStats) -> int:
-        """Save bot statistics snapshot.
-
-        Args:
-            stats: BotStats instance
-
-        Returns:
-            Database row ID
-        """
+        """Save bot statistics snapshot."""
         def _do_save():
             with self._locked_conn() as conn:
                 cursor = conn.cursor()
@@ -647,20 +554,8 @@ class DatabaseManager:
                 return cursor.lastrowid
         return self._execute_with_retry(_do_save)
 
-    def get_stats_history(
-        self,
-        hours: int = 24,
-        limit: int = 1000
-    ) -> list[BotStats]:
-        """Retrieve recent statistics history.
-
-        Args:
-            hours: Number of hours to look back
-            limit: Maximum number of results
-
-        Returns:
-            List of BotStats objects
-        """
+    def get_stats_history(self, hours: int = 24, limit: int = 1000) -> list[BotStats]:
+        """Retrieve recent statistics history."""
         since = time.time() - (hours * 3600)
         conn = self._get_read_connection()
         cursor = conn.cursor()
@@ -671,29 +566,17 @@ class DatabaseManager:
             LIMIT ?
         """, (since, limit))
         rows = cursor.fetchall()
-
         return [BotStats(
-            id=row["id"],
-            timestamp=row["timestamp"],
-            messages_processed=row["messages_processed"],
-            cache_hits=row["cache_hits"],
-            cache_misses=row["cache_misses"],
-            errors=row["errors"],
+            id=row["id"], timestamp=row["timestamp"],
+            messages_processed=row["messages_processed"], cache_hits=row["cache_hits"],
+            cache_misses=row["cache_misses"], errors=row["errors"],
             avg_response_time_ms=row["avg_response_time_ms"],
-            total_tokens_used=row["total_tokens_used"],
-            active_users=row["active_users"],
+            total_tokens_used=row["total_tokens_used"], active_users=row["active_users"],
             active_servers=row["active_servers"]
         ) for row in rows]
 
     def get_aggregate_stats(self, hours: int = 24) -> dict[str, Any]:
-        """Get aggregated statistics for a time period.
-
-        Args:
-            hours: Number of hours to aggregate
-
-        Returns:
-            Dictionary with aggregated stats
-        """
+        """Get aggregated statistics for a time period."""
         since = time.time() - (hours * 3600)
         conn = self._get_read_connection()
         cursor = conn.cursor()
@@ -711,20 +594,12 @@ class DatabaseManager:
             WHERE timestamp > ?
         """, (since,))
         row = cursor.fetchone()
-
         if not row:
             return {
-                "total_messages": 0,
-                "total_cache_hits": 0,
-                "total_cache_misses": 0,
-                "total_errors": 0,
-                "avg_response_time_ms": 0.0,
-                "total_tokens": 0,
-                "peak_users": 0,
-                "peak_servers": 0,
-                "cache_hit_rate": 0.0,
+                "total_messages": 0, "total_cache_hits": 0, "total_cache_misses": 0,
+                "total_errors": 0, "avg_response_time_ms": 0.0, "total_tokens": 0,
+                "peak_users": 0, "peak_servers": 0, "cache_hit_rate": 0.0,
             }
-
         hits = row["total_cache_hits"] or 0
         misses = row["total_cache_misses"] or 0
         return {
@@ -776,7 +651,6 @@ class DatabaseManager:
         """Set an access control rule (whitelist/blacklist/role) for a user, channel, or guild."""
         with self._locked_conn() as conn:
             cursor = conn.cursor()
-            # Remove any existing conflicting rule for this target_id
             cursor.execute("DELETE FROM access_control WHERE target_id = ?", (target_id,))
             cursor.execute("""
                 INSERT INTO access_control (target_type, target_id, permission, enabled, added_by, timestamp)

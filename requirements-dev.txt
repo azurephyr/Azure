@@ -8,3 +8,7 @@ black>=24.0,<26.0
 isort>=5.13,<7.0
 bandit>=1.7,<2.0
 pip-audit>=2.7,<3.0
+
+# Starlette's current TestClient backend
+# Starlette 1.2+ prefers httpx2 and falls back to deprecated classic httpx.
+httpx2>=2.0,<3.0
